@@ -14,7 +14,7 @@ int req_buffer_create(struct req_buffer_t **_rbuf, unsigned const size) {
         *_rbuf = rbuf;
         return 0;
     } else {
-        fprintf(stderr, "Size of ring buffer must be non zero!");
+        syslog(LOG_ERR, "Size of ring buffer must be non zero!");
         return -1;
     }
 }
@@ -29,14 +29,14 @@ int req_bufer_destroy(struct req_buffer_t **_rbuf) {
         *_rbuf = NULL;
         return 0;
     } else {
-        fprintf(stderr, "Memory already void!");
+        syslog(LOG_ERR, "Memory already void!");
         return -1;
     }
 }
 
 int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
     if (!rbuf) {
-        fprintf(stderr, "Ring buffer void!");
+        syslog(LOG_ERR, "Ring buffer void!");
         return -1;
     }
 
@@ -85,7 +85,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
                 if (rbuf->reqs[i].data_offset == rbuf->reqs[i].data_size) {
                     rbuf->reqs[i].req_status = READY;
                 } else if (rbuf->reqs[i].data_offset > rbuf->reqs[i].data_size) {
-                    fprintf(stderr, "handle_msg() - Corrupted data size\n");
+                    syslog(LOG_ERR, "handle_msg() - Corrupted data size\n");
                     return -3;
                 }
 
@@ -93,10 +93,10 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
             }
         }
 
-        fprintf(stderr, "handle_msg() - No sequence in buffer\n");
+        syslog(LOG_ERR, "handle_msg() - No sequence in buffer\n");
         return -1;
     } else {
-        fprintf(stderr, "handle_msg() - Unhandled situation\n");
+        syslog(LOG_ERR, "handle_msg() - Unhandled situation\n");
         return -2;
     }
 
@@ -105,12 +105,12 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
 
 int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t *const data) {
     if (!rbuf) {
-        fprintf(stderr, "Ring buffer void!");
+        syslog(LOG_ERR, "Ring buffer void!");
         return -1;
     }
 
     if (!data) {
-        fprintf(stderr, "Data object cannot be void!");
+        syslog(LOG_ERR, "Data object cannot be void!");
         return -2;
     }
 

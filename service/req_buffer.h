@@ -8,9 +8,7 @@
 
 #include "common.h"
 
-#define BUFFER_SIZE 256
-
-enum ReqStatus { IN_PROGRESS, READY, COMPLETED };
+enum ReqStatus { COMPLETED, IN_PROGRESS, READY };
 
 /* For communication between service threads */
 struct service_req_t {

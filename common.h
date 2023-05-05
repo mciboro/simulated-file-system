@@ -1,11 +1,14 @@
 #pragma once
 
 #include <sys/types.h>
+#include <syslog.h>
+
 
 extern int errno;
 #define IPC_PERMS 0666
 #define IPC_REQUESTS_KEY 1234L
 #define IPC_RESPONSE_KEY 2345L
+#define BUFFER_SIZE 256
 
 typedef unsigned int fd_type;
 
