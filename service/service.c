@@ -13,8 +13,6 @@
 
 #include "service.h"
 
-#define MAX_MSG_SIZE 8192
-
 volatile sig_atomic_t working = true;
 struct req_buffer_t *server_buf = NULL;
 
@@ -24,34 +22,25 @@ void *receive(void *service_args) {
     int msgid = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
 
     if (msgid == -1) {
-        perror("Error in msgget()");
+        syslog(LOG_ERR, "Error in msgget()");
         exit(EXIT_FAILURE);
     }
 
-    struct request_t req_msg = {0};
+    struct request_t msg = {0};
     int msg_len = 0;
     while (working) {
-        msg_len = msgrcv(msgid, &req_msg, 0, 0, IPC_NOWAIT);
-        if (msg_len == -1 && errno == ENOMSG) {
-            sleep(1);
-            continue;
-        } else if (msg_len == -1) {
-            perror("Error in msgrcv()");
+        msgrcv(msgid, &msg, MAX_MSG_SIZE, 0, 0);
+        msg_len = sizeof(msg) + msg.part_size;
+
+        if (msg_len <= 0) {
+            syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
             exit(EXIT_FAILURE);
         }
 
-        if (msg_len > 0 && msg_len <= MAX_MSG_SIZE) {
-            msg_len = msgrcv(msgid, &req_msg, msg_len, 0, IPC_NOWAIT);
-            if (msg_len == -1) {
-                perror("Error in msgrcv()");
-                exit(EXIT_FAILURE);
-            }
-        } else {
-            syslog(LOG_ERR, "Message length is incorrect: %d\n", msg_len);
-        }
+        syslog(LOG_INFO, "Msg len: %d", msg_len);
 
-        if (handle_msg(server_buf, &req_msg)) {
-            syslog(LOG_ERR, "Message handling failed!\n");
+        if (handle_msg(server_buf, &msg)) {
+            syslog(LOG_ERR, "msgrcv() - Message handling failed!");
             exit(EXIT_FAILURE);
         }
     }
@@ -84,16 +73,6 @@ void *operate(void *worker_args) {
             syslog(LOG_ERR, "Unrecognized type!\n");
             exit(EXIT_FAILURE);
         }
-
-        free(req->data);
-        req->data = NULL;
-        req->data_offset = 0;
-        req->data_size = 0;
-        req->req_status = COMPLETED;
-        req->sender = 0;
-        req->seq = 0;
-
-        req = NULL;
     }
 }
 

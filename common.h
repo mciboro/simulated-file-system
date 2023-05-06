@@ -9,6 +9,7 @@ extern int errno;
 #define IPC_REQUESTS_KEY 1234L
 #define IPC_RESPONSE_KEY 2345L
 #define BUFFER_SIZE 256
+#define MAX_MSG_SIZE 8192
 
 typedef unsigned int fd_type;
 
@@ -30,7 +31,7 @@ enum Status { SUCCESS, FAILURE };
 
 struct request_t {
     unsigned seq;
-    unsigned sender;
+    pid_t sender;
     enum Type type;
     unsigned multipart;
     unsigned data_size;
@@ -42,12 +43,12 @@ struct request_t {
 struct response_t {
     unsigned seq;
     unsigned rseq;
-    unsigned receiver;
+    pid_t receiver;
     enum Status status;
     unsigned multipart;
     unsigned index;
     unsigned data_size;
-    char data[];
+    char *data;
 };
 
 struct stat_t {
@@ -56,4 +57,9 @@ struct stat_t {
     struct timespec st_atim; /* Czas ostatniego dostępu */
     struct timespec st_mtim; /* Czas ostatniej modyfikacji */
     struct timespec st_ctim; /* Czas ostatniej zmiany statusu */
+};
+
+struct create_request_args_t {
+    long mode;
+    char *name;
 };

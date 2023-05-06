@@ -8,6 +8,14 @@ add_executable(service service/service.c service/req_buffer.c)
 target_include_directories(service PUBLIC .)
 target_link_libraries(service pthread)
 
+add_library(libfs SHARED lib/libfs.c)
+target_include_directories(libfs PUBLIC .)
+# target_link_libraries(libfs)
+
+add_executable(libfs-tests lib/libfs_tests.c)
+target_include_directories(libfs-tests PUBLIC .)
+target_link_libraries(libfs-tests libfs)
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
