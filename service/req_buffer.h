@@ -12,12 +12,12 @@ enum ReqStatus { COMPLETED, IN_PROGRESS, READY };
 
 /* For communication between service threads */
 struct service_req_t {
-    unsigned seq;
     pid_t sender;
     enum Type type;
     enum ReqStatus req_status;
     unsigned data_size;
     unsigned data_offset;
+    char seq[16];
     char *data;
 };
 

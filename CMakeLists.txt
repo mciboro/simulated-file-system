@@ -4,11 +4,11 @@ project(libfs VERSION 0.1.0)
 include(CTest)
 enable_testing()
 
-add_executable(service service/service.c service/req_buffer.c)
+add_executable(service service/service.c service/req_buffer.c common.c)
 target_include_directories(service PUBLIC .)
 target_link_libraries(service pthread)
 
-add_library(libfs SHARED lib/libfs.c)
+add_library(libfs SHARED lib/libfs.c common.c)
 target_include_directories(libfs PUBLIC .)
 # target_link_libraries(libfs)
 

@@ -45,7 +45,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         pthread_mutex_lock(&rbuf->lock);
 
         struct service_req_t new_req = {0};
-        new_req.seq = msg->seq;
+        strcpy(new_req.seq, msg->seq);
         new_req.sender = msg->sender;
         new_req.type = msg->type;
         new_req.req_status = READY;
@@ -55,7 +55,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         rbuf->reqs[rbuf->wr_idx] = new_req;
         rbuf->wr_idx = (rbuf->wr_idx + 1) % rbuf->size;
 
-        syslog(LOG_INFO, "Request added to buffer. SEQ: %d", new_req.seq);
+        syslog(LOG_INFO, "Request added to buffer.");
 
         pthread_mutex_unlock(&rbuf->lock);
         sem_post(&rbuf->full);
@@ -64,7 +64,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         pthread_mutex_lock(&rbuf->lock);
 
         struct service_req_t new_req = {0};
-        new_req.seq = msg->seq;
+        strcpy(new_req.seq, msg->seq);
         new_req.sender = msg->sender;
         new_req.type = msg->type;
         new_req.req_status = IN_PROGRESS;
@@ -74,13 +74,13 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         rbuf->reqs[rbuf->wr_idx] = new_req;
         rbuf->wr_idx = (rbuf->wr_idx + 1) % rbuf->size;
 
-        syslog(LOG_INFO, "First part of request added to buffer. SEQ: %d", new_req.seq);
+        syslog(LOG_INFO, "First part of request added to buffer.");
 
         pthread_mutex_unlock(&rbuf->lock);
         sem_post(&rbuf->full);
     } else if (msg->multipart && msg->data_offset > 0) {
         for (int i = rbuf->rd_idx + 1; i < rbuf->wr_idx; i++) {
-            if (rbuf->reqs[i].seq == msg->seq) {
+            if (strcmp(rbuf->reqs[i].seq, msg->seq) == 0) {
                 pthread_mutex_lock(&rbuf->lock);
 
                 memcpy(rbuf->reqs[i].data + rbuf->reqs[i].data_offset, msg->data, msg->data_size);
@@ -93,7 +93,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
                     return -3;
                 }
 
-                syslog(LOG_INFO, "Next part of request added to buffer. SEQ: %d", rbuf->reqs[i].seq);
+                syslog(LOG_INFO, "Next part of request added to buffer.");
                 pthread_mutex_unlock(&rbuf->lock);
             }
         }
@@ -129,7 +129,6 @@ int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t *const
     rbuf->reqs[rbuf->rd_idx].data_size = 0;
     rbuf->reqs[rbuf->rd_idx].req_status = COMPLETED;
     rbuf->reqs[rbuf->rd_idx].sender = 0;
-    rbuf->reqs[rbuf->rd_idx].seq = 0;
 
     rbuf->rd_idx = (rbuf->rd_idx + 1) % rbuf->size;
     pthread_mutex_unlock(&rbuf->lock);

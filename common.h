@@ -2,7 +2,7 @@
 
 #include <sys/types.h>
 #include <syslog.h>
-
+#include <stdint.h>
 
 extern int errno;
 #define IPC_PERMS 0666
@@ -13,42 +13,29 @@ extern int errno;
 
 typedef unsigned int fd_type;
 
-enum Type {
-    CREATE,
-    CHMODE,
-    RENAME,
-    UNLINK,
-    OPEN,
-    READ,
-    WRITE,
-    SEEK,
-    CLOSE,
-    STAT,
-    LINK,
-    SYMLINK
-};
+enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
 enum Status { SUCCESS, FAILURE };
 
 struct request_t {
-    unsigned seq;
     pid_t sender;
     enum Type type;
     unsigned multipart;
     unsigned data_size;
     unsigned data_offset;
     unsigned part_size;
+    char seq[16]; 
     char data[];
 };
 
 struct response_t {
-    unsigned seq;
-    unsigned rseq;
     pid_t receiver;
     enum Status status;
     unsigned multipart;
     unsigned index;
     unsigned data_size;
-    char *data;
+    char seq[16];
+    char rseq[16];
+    char data[];
 };
 
 struct stat_t {
@@ -59,7 +46,4 @@ struct stat_t {
     struct timespec st_ctim; /* Czas ostatniej zmiany statusu */
 };
 
-struct create_request_args_t {
-    long mode;
-    char *name;
-};
+void get_uid(char *uid);
