@@ -1,16 +1,3 @@
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include "service.h"
 
 volatile sig_atomic_t working = true;
@@ -86,8 +73,6 @@ int main() {
         exit(EXIT_SUCCESS);
     }
 
-    umask(0);
-
     pid_t sid = setsid();
 
     if (sid < 0) {
@@ -100,9 +85,24 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    umask(0);
+
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
+
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    if (mkdir(strcat(pw->pw_dir, "/libfs"), S_IRWXU) == -1 && errno != EEXIST) {
+        syslog(LOG_INFO, "Cannot make directory for libfs service");
+        exit(EXIT_FAILURE);
+    }
 
     openlog("libfs-service", LOG_PID, LOG_DAEMON);
     syslog(LOG_INFO, "Libfs service started");
