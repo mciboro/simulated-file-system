@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include "common.h"
 #include "req_buffer.h"
+#include "operations.h"
 
 #define BUFFER_SIZE 256
 

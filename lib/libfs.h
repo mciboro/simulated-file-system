@@ -10,6 +10,8 @@
 
 #include "common.h"
 
+extern unsigned seq_counter;
+
 fd_type libfs_create(char *const name, long mode);
 int libfs_chmode(char *const name, long mode);
 int libfs_rename(const char *oldname, const char *newname);

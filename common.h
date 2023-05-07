@@ -1,8 +1,8 @@
 #pragma once
 
+#include <stdint.h>
 #include <sys/types.h>
 #include <syslog.h>
-#include <stdint.h>
 
 extern int errno;
 #define IPC_PERMS 0666
@@ -19,22 +19,22 @@ enum Status { SUCCESS, FAILURE };
 struct request_t {
     pid_t sender;
     enum Type type;
+    long seq;
     unsigned multipart;
     unsigned data_size;
     unsigned data_offset;
     unsigned part_size;
-    char seq[16]; 
     char data[];
 };
 
 struct response_t {
     pid_t receiver;
     enum Status status;
+    long seq;
     unsigned multipart;
-    unsigned index;
     unsigned data_size;
-    char seq[16];
-    char rseq[16];
+    unsigned data_offset;
+    unsigned part_size;
     char data[];
 };
 
@@ -45,5 +45,3 @@ struct stat_t {
     struct timespec st_mtim; /* Czas ostatniej modyfikacji */
     struct timespec st_ctim; /* Czas ostatniej zmiany statusu */
 };
-
-void get_uid(char *uid);

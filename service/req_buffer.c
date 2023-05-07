@@ -45,9 +45,9 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         pthread_mutex_lock(&rbuf->lock);
 
         struct service_req_t new_req = {0};
-        strcpy(new_req.seq, msg->seq);
         new_req.sender = msg->sender;
         new_req.type = msg->type;
+        new_req.seq = msg->seq;
         new_req.req_status = READY;
         new_req.data_size = msg->data_size;
         new_req.data = malloc(new_req.data_size);
@@ -64,9 +64,9 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         pthread_mutex_lock(&rbuf->lock);
 
         struct service_req_t new_req = {0};
-        strcpy(new_req.seq, msg->seq);
         new_req.sender = msg->sender;
         new_req.type = msg->type;
+        new_req.seq = msg->seq;
         new_req.req_status = IN_PROGRESS;
         new_req.data_size = msg->data_size;
         new_req.data = malloc(new_req.data_size);
@@ -80,7 +80,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         sem_post(&rbuf->full);
     } else if (msg->multipart && msg->data_offset > 0) {
         for (int i = rbuf->rd_idx + 1; i < rbuf->wr_idx; i++) {
-            if (strcmp(rbuf->reqs[i].seq, msg->seq) == 0) {
+            if (rbuf->reqs[i].seq == msg->seq) {
                 pthread_mutex_lock(&rbuf->lock);
 
                 memcpy(rbuf->reqs[i].data + rbuf->reqs[i].data_offset, msg->data, msg->data_size);

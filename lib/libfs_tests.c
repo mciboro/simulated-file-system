@@ -2,5 +2,10 @@
 
 int main() {
     libfs_create("sample_name.t222xt", 777);
+    libfs_create("sample_name.t222xt", 777);
+    libfs_create("sample_name.t222xt", 777);
+    libfs_create("sample_name.t222xt", 777);
+    libfs_create("sample_name.t222xt", 777);
+
     return 0;
 }

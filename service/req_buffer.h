@@ -14,10 +14,10 @@ enum ReqStatus { COMPLETED, IN_PROGRESS, READY };
 struct service_req_t {
     pid_t sender;
     enum Type type;
+    long seq;
     enum ReqStatus req_status;
     unsigned data_size;
     unsigned data_offset;
-    char seq[16];
     char *data;
 };
 

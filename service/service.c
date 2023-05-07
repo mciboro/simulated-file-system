@@ -66,7 +66,7 @@ void *operate(void *worker_args) {
 
         switch (req->type) {
         case CREATE:
-            /* code */
+            service_create(req);
             break;
         // TO DO
         default:
