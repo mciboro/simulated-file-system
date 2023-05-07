@@ -14,7 +14,6 @@ int service_create(struct service_req_t *req) {
 
     struct response_t *msg = malloc(sizeof(struct response_t));
 
-    msg->receiver = req->sender;
     msg->seq = req->seq;
     msg->status = SUCCESS;
     msg->multipart = false;

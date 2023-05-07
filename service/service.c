@@ -37,8 +37,6 @@ void *receive(void *service_args) {
             exit(EXIT_FAILURE);
         }
 
-        syslog(LOG_INFO, "Msg len: %d", msg_len);
-
         if (handle_msg(server_buf, &msg)) {
             syslog(LOG_ERR, "msgrcv() - Message handling failed!");
             exit(EXIT_FAILURE);
@@ -107,6 +105,7 @@ int main() {
     close(STDERR_FILENO);
 
     openlog("libfs-service", LOG_PID, LOG_DAEMON);
+    syslog(LOG_INFO, "Libfs service started");
 
     struct sigaction sigint = {0}, sigterm = {0};
     sigint.sa_handler = end_service;
@@ -129,6 +128,7 @@ int main() {
 
     req_bufer_destroy(&server_buf);
 
+    syslog(LOG_INFO, "Libfs service ended");
     closelog();
     exit(EXIT_SUCCESS);
 }

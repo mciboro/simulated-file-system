@@ -17,9 +17,8 @@ enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT
 enum Status { SUCCESS, FAILURE };
 
 struct request_t {
-    pid_t sender;
-    enum Type type;
     long seq;
+    enum Type type;
     unsigned multipart;
     unsigned data_size;
     unsigned data_offset;
@@ -28,9 +27,8 @@ struct request_t {
 };
 
 struct response_t {
-    pid_t receiver;
-    enum Status status;
     long seq;
+    enum Status status;
     unsigned multipart;
     unsigned data_size;
     unsigned data_offset;
