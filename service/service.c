@@ -35,10 +35,8 @@ void *operate(void *worker_args) {
     int status = 0;
 
     while (working) {
-        struct service_req_t req_obj = {0};
-        struct service_req_t *req = &req_obj;
-
-        status = get_service_req(server_buf, req);
+        struct service_req_t *req = NULL;
+        status = get_service_req(server_buf, &req);
 
         if (status) {
             syslog(LOG_ERR, "Data receiving failed!\n");
@@ -58,6 +56,12 @@ void *operate(void *worker_args) {
             syslog(LOG_ERR, "Unrecognized type!\n");
             exit(EXIT_FAILURE);
         }
+        
+        free(req->data);
+        req->data = NULL;
+        req->data_offset = 0;
+        req->data_size = 0;
+        req->req_status = COMPLETED;
     }
 }
 

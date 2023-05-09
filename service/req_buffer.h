@@ -34,4 +34,4 @@ struct req_buffer_t {
 int req_buffer_create(struct req_buffer_t **_rbuf, unsigned const size);
 int req_bufer_destroy(struct req_buffer_t **_rbuf);
 int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg);
-int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t *const data);
+int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t **data);
