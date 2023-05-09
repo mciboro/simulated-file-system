@@ -35,9 +35,9 @@ fd_type libfs_create(char *const name, long mode) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *resp = malloc(sizeof(struct response_t));
+    struct response_t *resp = malloc(sizeof(struct response_t) + sizeof(fd_type));
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t), req->seq, 0);
+    msgrcv(response_queue, resp, sizeof(struct response_t) + sizeof(fd_type), req->seq, 0);
     msg_len = sizeof(*resp) + resp->part_size;
     status = resp->status;
 
@@ -47,7 +47,7 @@ fd_type libfs_create(char *const name, long mode) {
     }
 
     if (status == SUCCESS) {
-        fprintf(stdout, "File %s created successfully.\n", name);
+        fprintf(stderr, "File %s created successfully. New desc: %d\n", name, *(fd_type*)resp->data);
     } else {
         fprintf(stderr, "File %s wasn't created!\n", name);
     }
@@ -55,5 +55,5 @@ fd_type libfs_create(char *const name, long mode) {
     free(req);
     free(resp);
 
-    return status;
+    return *(fd_type*)resp->data;
 }

@@ -106,7 +106,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
     return 0;
 }
 
-int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t *const data) {
+int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t **data) {
     if (!rbuf) {
         syslog(LOG_ERR, "Ring buffer void!");
         return -1;
@@ -119,14 +119,7 @@ int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t *const
 
     sem_wait(&rbuf->full);
     pthread_mutex_lock(&rbuf->lock);
-    *data = rbuf->reqs[rbuf->rd_idx];
-
-    free(rbuf->reqs[rbuf->rd_idx].data);
-    rbuf->reqs[rbuf->rd_idx].data = NULL;
-    rbuf->reqs[rbuf->rd_idx].data_offset = 0;
-    rbuf->reqs[rbuf->rd_idx].data_size = 0;
-    rbuf->reqs[rbuf->rd_idx].req_status = COMPLETED;
-
+    *data = &rbuf->reqs[rbuf->rd_idx];
     rbuf->rd_idx = (rbuf->rd_idx + 1) % rbuf->size;
     pthread_mutex_unlock(&rbuf->lock);
     sem_post(&rbuf->empty);
