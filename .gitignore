@@ -1,2 +1,11 @@
 build
 .vscode
+build
+.vscode
+*.cmake
+CMakeCache.txt
+*.tcl
+Makefile
+CMakeFiles
+*.so
+bin
