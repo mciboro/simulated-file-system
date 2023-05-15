@@ -11,9 +11,11 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "common.h"
+#include "inode.h"
 #include "req_buffer.h"
 
 int service_create(struct service_req_t *req);

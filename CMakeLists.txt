@@ -3,7 +3,7 @@ project(libfs VERSION 0.1.0)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_executable(service service/service.c service/req_buffer.c service/operations.c common.c)
+add_executable(service service/service.c service/req_buffer.c service/operations.c service/inode.c common.c)
 target_include_directories(service PUBLIC .)
 target_link_libraries(service pthread)
 

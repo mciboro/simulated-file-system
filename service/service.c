@@ -1,9 +1,33 @@
-#include "service.h"
+#include "common.h"
+#include "inode.h"
+#include "operations.h"
+#include "req_buffer.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <pwd.h>
+#include <semaphore.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 256
+#define DEBUG
 
 volatile sig_atomic_t working = true;
 struct req_buffer_t *server_buf = NULL;
+pthread_t receiver = {0}, worker = {0};
 
-void end_service() { working = false; }
+void end_service() {
+    working = false;
+    sem_post(&server_buf->full);
+}
 
 void *receive(void *service_args) {
     int msgid = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
@@ -13,35 +37,56 @@ void *receive(void *service_args) {
         exit(EXIT_FAILURE);
     }
 
-    struct request_t msg = {0};
-    int msg_len = 0;
     while (working) {
-        msgrcv(msgid, &msg, MAX_MSG_SIZE, 0, 0);
-        msg_len = sizeof(msg) + msg.part_size;
+        struct request_t *msg = malloc(MAX_MSG_SIZE);
+        memset(msg, 0, MAX_MSG_SIZE);
+        int msg_len = 0;
+
+        syslog(LOG_INFO, "Waiting for request...");
+        if (msgrcv(msgid, msg, MAX_MSG_SIZE, 0, 0) == -1) {
+            if (errno == EINTR) {
+                syslog(LOG_INFO, "Interrupted by signal. Breaking...");
+                free(msg);
+                break;
+            }
+        }
+
+        syslog(LOG_INFO, "Received request");
+
+        msg_len = sizeof(msg) + msg->part_size;
 
         if (msg_len <= 0) {
             syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
             exit(EXIT_FAILURE);
         }
 
-        if (handle_msg(server_buf, &msg)) {
+        if (handle_msg(server_buf, msg)) {
             syslog(LOG_ERR, "msgrcv() - Message handling failed!");
             exit(EXIT_FAILURE);
         }
+
+        free(msg);
     }
+
+    syslog(LOG_INFO, "Receive thread ending now...");
 }
 
 void *operate(void *worker_args) {
     int status = 0;
 
-    while (working) {
+    for (;;) {
         struct service_req_t *req = NULL;
         status = get_service_req(server_buf, &req);
+
+        if (!working) {
+            break;
+        }
 
         if (status) {
             syslog(LOG_ERR, "Data receiving failed!\n");
             exit(EXIT_FAILURE);
         }
+
         if (req->req_status != READY) {
             syslog(LOG_ERR, "Data is corrupted!\n");
             exit(EXIT_FAILURE);
@@ -56,16 +101,20 @@ void *operate(void *worker_args) {
             syslog(LOG_ERR, "Unrecognized type!\n");
             exit(EXIT_FAILURE);
         }
-        
+
         free(req->data);
         req->data = NULL;
         req->data_offset = 0;
         req->data_size = 0;
         req->req_status = COMPLETED;
     }
+
+    syslog(LOG_INFO, "Operate thread ending now...");
+    pthread_kill(receiver, SIGINT);
 }
 
 int main() {
+#ifndef DEBUG
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -89,11 +138,12 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    umask(0);
-
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
+#endif
+
+    umask(0);
 
     uid_t uid = getuid();
     struct passwd *pw = getpwuid(uid);
@@ -103,10 +153,14 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    if (mkdir(strcat(pw->pw_dir, "/libfs"), S_IRWXU) == -1 && errno != EEXIST) {
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    if (mkdir(libfs_dir, S_IRWXU) == -1 && errno != EEXIST) {
         syslog(LOG_INFO, "Cannot make directory for libfs service");
         exit(EXIT_FAILURE);
     }
+
+    open_inode_table(&inode_table);
 
     openlog("libfs-service", LOG_PID, LOG_DAEMON);
     syslog(LOG_INFO, "Libfs service started");
@@ -123,7 +177,6 @@ int main() {
 
     req_buffer_create(&server_buf, BUFFER_SIZE);
 
-    pthread_t receiver = {0}, worker = {0};
     pthread_create(&receiver, NULL, receive, NULL);
     pthread_create(&worker, NULL, operate, NULL);
 
@@ -131,6 +184,8 @@ int main() {
     pthread_join(worker, NULL);
 
     req_bufer_destroy(&server_buf);
+    close_inode_table(inode_table);
+    close_file_descriptors_table(descriptor_table);
 
     syslog(LOG_INFO, "Libfs service ended");
     closelog();

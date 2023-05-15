@@ -4,6 +4,7 @@ int req_buffer_create(struct req_buffer_t **_rbuf, unsigned const size) {
     if (size > 0) {
         struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * size);
         memset(rbuf, 0, sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * size);
+
         rbuf->struct_len = sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * size;
         rbuf->size = size;
         rbuf->rd_idx = 0;
@@ -50,6 +51,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         new_req.req_status = READY;
         new_req.data_size = msg->data_size;
         new_req.data = malloc(new_req.data_size);
+
         memcpy(new_req.data, msg->data, msg->data_size);
         rbuf->reqs[rbuf->wr_idx] = new_req;
         rbuf->wr_idx = (rbuf->wr_idx + 1) % rbuf->size;
@@ -68,7 +70,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         new_req.req_status = IN_PROGRESS;
         new_req.data_size = msg->data_size;
         new_req.data = malloc(new_req.data_size);
-        memcpy(new_req.data, msg->data, msg->data_size);
+
         rbuf->reqs[rbuf->wr_idx] = new_req;
         rbuf->wr_idx = (rbuf->wr_idx + 1) % rbuf->size;
 
