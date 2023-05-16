@@ -13,6 +13,7 @@ extern int errno;
 #define BUFFER_SIZE 256
 #define MAX_MSG_SIZE 4096
 #define DEFAULT_BLKSIZE 4096
+#define MAX_FILENAME_LEN 256
 
 typedef unsigned int fd_type;
 

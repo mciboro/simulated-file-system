@@ -96,7 +96,9 @@ void *operate(void *worker_args) {
         case CREATE:
             service_create(req);
             break;
-        // TO DO
+        case RENAME:
+            service_rename(req);
+            break;
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");
             exit(EXIT_FAILURE);

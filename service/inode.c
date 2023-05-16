@@ -124,6 +124,20 @@ int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_gr
     return node->index;
 }
 
+int rename_inode(struct inode_t *head, char *oldname, char *newname) {
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, oldname) == 0) {
+            memset(node_iter->filename, 0, MAX_FILENAME_LEN);
+            strcpy(node_iter->filename, newname);
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
+}
+
 int close_inode_table(struct inode_t *head) {
 
     FILE *inode_file = NULL;

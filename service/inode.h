@@ -29,13 +29,14 @@ struct inode_t {
     long mode;
     uid_t owner;
     gid_t owner_group;
-    char filename[256];
+    char filename[MAX_FILENAME_LEN];
 };
 
 int open_inode_table(struct inode_t **head);
+int close_inode_table(struct inode_t *head);
 int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_group, long mode, off_t st_size,
               unsigned st_blksize, struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim);
-int close_inode_table(struct inode_t *head);
+int rename_inode(struct inode_t *head, char *oldname, char *newname);
 int remove_inode(struct inode_t **head, const char *name);
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset);

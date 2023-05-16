@@ -57,3 +57,55 @@ int service_create(struct service_req_t *req) {
 
     return 0;
 }
+
+int service_rename(struct service_req_t *req) {
+    syslog(LOG_INFO, "Handling RENAME operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_create() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct rename_args_t {
+        char oldname[256];
+        char newname[256];
+    } args;
+
+    strcpy(args.oldname, req->data);
+    strcpy(args.newname, req->data + strlen(args.oldname) + 1);
+
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "service_create() - Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    int status = rename_inode(inode_table, args.oldname, args.newname);
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    if (status == 0) {
+        msg->status = SUCCESS;
+    } else {
+        msg->status = FAILURE;
+    }
+    msg->multipart = false;
+    msg->data_size = sizeof(fd_type);
+    msg->data_offset = 0;
+    msg->part_size = 0;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size, 0) == -1) {
+        syslog(LOG_ERR, "service_create() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return 0;
+}

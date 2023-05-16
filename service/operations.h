@@ -19,3 +19,4 @@
 #include "req_buffer.h"
 
 int service_create(struct service_req_t *req);
+int service_rename(struct service_req_t *req);
