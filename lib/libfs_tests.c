@@ -8,5 +8,8 @@ int main() {
     libfs_create("sample_name.t224xt", 0444);
     libfs_create("sample_name.t224xt", 0777);
     libfs_chmode("sample_name.t220xt", 0644);
+    struct stat_t *buf;
+    libfs_stat("sample_name.t220xt", buf);
+    libfs_stat("sample_name.t220xt", buf);
     return 0;
 }
