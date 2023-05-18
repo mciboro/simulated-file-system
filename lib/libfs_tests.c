@@ -7,5 +7,6 @@ int main() {
     libfs_create("sample_name.t223xt", 0664);
     libfs_create("sample_name.t224xt", 0444);
     libfs_create("sample_name.t224xt", 0777);
+    libfs_chmode("sample_name.t220xt", 0644);
     return 0;
 }
