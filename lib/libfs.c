@@ -5,8 +5,10 @@ unsigned seq_counter = 0;
 fd_type libfs_create(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *req =
+    struct request_t *create_req =
         malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
+    memset(create_req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
+
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -17,22 +19,22 @@ fd_type libfs_create(char *const name, long mode) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    req->type = CREATE;
-    req->seq = get_seq();
-    req->multipart = 0;
-    req->data_size = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
-    req->part_size = req->data_size;
-    req->data_offset = 0;
+    create_req->type = CREATE;
+    create_req->seq = get_seq();
+    create_req->multipart = 0;
+    create_req->data_size = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
+    create_req->part_size = create_req->data_size;
+    create_req->data_offset = 0;
 
-    memcpy(req->data + copy_offset, &uid, sizeof(uid));
+    memcpy(create_req->data + copy_offset, &uid, sizeof(uid));
     copy_offset += sizeof(uid);
-    memcpy(req->data + copy_offset, &gid, sizeof(gid));
+    memcpy(create_req->data + copy_offset, &gid, sizeof(gid));
     copy_offset += sizeof(gid);
-    memcpy(req->data + copy_offset, &mode, sizeof(mode));
+    memcpy(create_req->data + copy_offset, &mode, sizeof(mode));
     copy_offset += sizeof(mode);
-    strcpy(req->data + copy_offset, name);
+    strcpy(create_req->data + copy_offset, name);
 
-    if (msgsnd(request_queue, req, sizeof(struct request_t) + req->part_size - sizeof(long), 0) == -1) {
+    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) == -1) {
         fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
         exit(EXIT_FAILURE);
     }
@@ -44,12 +46,13 @@ fd_type libfs_create(char *const name, long mode) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *resp = malloc(sizeof(struct response_t) + sizeof(fd_type));
+    struct response_t *create_resp = malloc(sizeof(struct response_t) + sizeof(fd_type));
+    memset(create_resp, 0, sizeof(struct request_t) + sizeof(fd_type));
 
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t) + sizeof(fd_type), req->seq, 0);
-    msg_len = sizeof(*resp) + resp->part_size;
-    status = resp->status;
+    msgrcv(response_queue, create_resp, sizeof(struct response_t) + sizeof(fd_type) - sizeof(long), create_req->seq, 0);
+    msg_len = sizeof(*create_resp) + create_resp->part_size;
+    status = create_resp->status;
 
     if (msg_len <= 0) {
         syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
@@ -57,21 +60,24 @@ fd_type libfs_create(char *const name, long mode) {
     }
 
     if (status == SUCCESS) {
-        fprintf(stderr, "File %s created successfully. New desc: %d\n", name, *(fd_type *)resp->data);
+        fprintf(stderr, "File %s created successfully. New desc: %d\n", name, *(fd_type *)create_resp->data);
     } else {
         fprintf(stderr, "File %s wasn't created!\n", name);
     }
 
-    free(req);
-    free(resp);
+    fd_type new_desc = *(fd_type *)create_resp->data;
 
-    return *(fd_type *)resp->data;
+    free(create_req);
+    free(create_resp);
+
+    return new_desc;
 }
 
 int libfs_rename(const char *oldname, const char *newname) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *req = malloc(sizeof(struct request_t) + strlen(oldname) + 1 + strlen(newname) + 1);
+    struct request_t *rename_req = malloc(sizeof(struct request_t) + strlen(oldname) + 1 + strlen(newname) + 1);
+    memset(rename_req, 0, sizeof(struct request_t) + strlen(oldname) + 1 + strlen(newname) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -82,18 +88,18 @@ int libfs_rename(const char *oldname, const char *newname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    req->type = RENAME;
-    req->seq = get_seq();
-    req->multipart = 0;
-    req->data_size = strlen(oldname) + 1 + strlen(newname) + 1;
-    req->part_size = req->data_size;
-    req->data_offset = 0;
+    rename_req->type = RENAME;
+    rename_req->seq = get_seq();
+    rename_req->multipart = 0;
+    rename_req->data_size = strlen(oldname) + 1 + strlen(newname) + 1;
+    rename_req->part_size = rename_req->data_size;
+    rename_req->data_offset = 0;
 
-    strcpy(req->data + copy_offset, oldname);
+    strcpy(rename_req->data + copy_offset, oldname);
     copy_offset += strlen(oldname) + 1;
-    strcpy(req->data + copy_offset, newname);
+    strcpy(rename_req->data + copy_offset, newname);
 
-    if (msgsnd(request_queue, req, sizeof(struct request_t) + req->part_size - sizeof(long), 0) == -1) {
+    if (msgsnd(request_queue, rename_req, sizeof(struct request_t) + rename_req->part_size - sizeof(long), 0) == -1) {
         fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
         exit(EXIT_FAILURE);
     }
@@ -105,12 +111,13 @@ int libfs_rename(const char *oldname, const char *newname) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *resp = malloc(sizeof(struct response_t));
+    struct response_t *rename_resp = malloc(sizeof(struct response_t));
+    memset(rename_resp, 0, sizeof(struct response_t));
 
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t), req->seq, 0);
-    msg_len = sizeof(*resp) + resp->part_size;
-    status = resp->status;
+    msgrcv(response_queue, rename_resp, sizeof(struct response_t) - sizeof(long), rename_req->seq, 0);
+    msg_len = sizeof(*rename_resp) + rename_resp->part_size;
+    status = rename_resp->status;
 
     if (msg_len <= 0) {
         syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
@@ -123,8 +130,8 @@ int libfs_rename(const char *oldname, const char *newname) {
         fprintf(stderr, "Filename wasn't created!\n");
     }
 
-    free(req);
-    free(resp);
+    free(rename_req);
+    free(rename_resp);
 
     return status;
 }

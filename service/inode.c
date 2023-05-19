@@ -2,6 +2,7 @@
 
 struct inode_t *inode_table = NULL;
 struct descriptor_t *descriptor_table = NULL;
+struct data_block_t *data_block_table = NULL;
 
 int open_inode_table(struct inode_t **head) {
     FILE *inode_file = NULL;
@@ -45,9 +46,6 @@ int open_inode_table(struct inode_t **head) {
         node->stat.st_size = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
-        node->stat.st_blksize = atoi(token);
-        token = strtok(line + copy_off, ",");
-        copy_off += strlen(token) + 1;
         node->stat.st_atim.tv_sec = atoi(token);
         node->stat.st_atim.tv_nsec = atoi(token) * 1000000;
         token = strtok(line + copy_off, ",");
@@ -58,9 +56,17 @@ int open_inode_table(struct inode_t **head) {
         copy_off += strlen(token) + 1;
         node->stat.st_ctim.tv_sec = atoi(token);
         node->stat.st_ctim.tv_nsec = atoi(token) * 1000000;
-        token = strtok(line + copy_off, "\n");
+        token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
         strcpy(node->filename, token);
+        for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
+            token = strtok(line + copy_off, ",");
+            copy_off += strlen(token) + 1;
+            node->data_blocks[i] = atoi(token);
+        }
+        token = strtok(line + copy_off, "\n");
+        copy_off += strlen(token) + 1;
+        node->data_blocks[FILE_MAX_BLOCKS - 1] = atoi(token);
 
         node->next = NULL;
         node->prev = NULL;
@@ -84,7 +90,7 @@ int open_inode_table(struct inode_t **head) {
 }
 
 int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_group, long mode, off_t st_size,
-              unsigned st_blksize, struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
+              struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
     struct inode_t *node_iter = *head;
     while (node_iter) {
         if (strcmp(node_iter->filename, filename) == 0) {
@@ -100,11 +106,11 @@ int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_gr
     node->owner_group = owner_group;
     node->mode = mode;
     node->stat.st_size = st_size;
-    node->stat.st_blksize = st_blksize;
     node->stat.st_atim = st_atim;
     node->stat.st_mtim = st_mtim;
     node->stat.st_ctim = st_ctim;
     strcpy(node->filename, filename);
+    memset(node->data_blocks, 0, sizeof(unsigned) * FILE_MAX_BLOCKS);
     node->next = NULL;
     node->prev = NULL;
 
@@ -163,9 +169,14 @@ int close_inode_table(struct inode_t *head) {
     fseek(inode_file, 0, SEEK_SET);
 
     while (node) {
-        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%d,%ld,%ld,%ld,%s\n", node->index, node->owner, node->owner_group,
-                node->mode, node->stat.st_size, node->stat.st_blksize, node->stat.st_atim.tv_sec,
-                node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec, node->filename);
+        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%ld,%ld,%ld,%s,", node->index, node->owner, node->owner_group, node->mode,
+                node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec,
+                node->filename);
+
+        for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
+            fprintf(inode_file, "%d,", node->data_blocks[i]);
+        }
+        fprintf(inode_file, "%d\n", node->data_blocks[FILE_MAX_BLOCKS - 1]);
 
         prev = node;
         node = node->next;
@@ -269,4 +280,127 @@ int remove_descriptor(struct descriptor_t **head, const fd_type desc) {
     }
 
     return -1;
+}
+
+int open_data_block_table(struct data_block_t **head) {
+
+    data_block_table = malloc(NUM_OF_DATA_BLOCKS * sizeof(struct data_block_t));
+    memset(data_block_table, 0, NUM_OF_DATA_BLOCKS * sizeof(struct data_block_t));
+
+    FILE *data_block_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    data_block_file = fopen(strcat(libfs_dir, "/data-blocks"), "r");
+
+    if (!data_block_file) {
+        syslog(LOG_ERR, "service_create() - No file node");
+        return 0;
+    }
+
+    char line[4096] = {0}, *token;
+    unsigned index = 0;
+    while (fgets(line, sizeof(line), data_block_file)) {
+        unsigned copy_off = 0;
+
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
+        data_block_table[index].allocated = atoi(token);
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
+        data_block_table[index].inode_index = atoi(token);
+        token = strtok(line + copy_off, ",");
+
+        memset(line, 0, 4096);
+        index++;
+
+        if (index >= NUM_OF_DATA_BLOCKS) {
+            fclose(data_block_file);
+            syslog(LOG_ERR, "Too much data blocks taken. Run out of memory!");
+            return -1;
+        }
+    }
+
+    fclose(data_block_file);
+    return 0;
+}
+
+int close_data_block_table(struct data_block_t *head) {
+
+    FILE *data_block_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    data_block_file = fopen(strcat(libfs_dir, "/data-blocks"), "w");
+
+    if (!data_block_file) {
+        syslog(LOG_ERR, "service_create() - Node file descriptor corrupted");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < NUM_OF_DATA_BLOCKS; i++) {
+        fprintf(data_block_file, "%d,%d\n", data_block_table[i].allocated, data_block_table[i].inode_index);
+    }
+
+    fclose(data_block_file);
+    free(data_block_table);
+    return 0;
+}
+
+int occupy_block_table_slot(unsigned inode_index, const char *buf) {
+    for (int i = 0; i < NUM_OF_DATA_BLOCKS; i++) {
+        if (!data_block_table[i].allocated) {
+            data_block_table[i].allocated = true;
+            data_block_table[i].inode_index = inode_index;
+
+            FILE *data_block_file = NULL;
+            uid_t uid = getuid();
+            struct passwd *pw = getpwuid(uid);
+
+            if (pw == NULL) {
+                syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+                exit(EXIT_FAILURE);
+            }
+
+            char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+            data_block_file = fopen(strcat(libfs_dir, "/data"), "a+");
+
+            if (!data_block_file) {
+                syslog(LOG_ERR, "service_create() - Node file descriptor corrupted");
+                exit(EXIT_FAILURE);
+            }
+
+            fseek(data_block_file, DATA_BLOCK_ALLOC_SIZE * i, SEEK_SET);
+            fwrite(buf, DATA_BLOCK_ALLOC_SIZE, 1, data_block_file);
+            fclose(data_block_file);
+            return 0;
+        }
+
+        return -1;
+    }
+}
+
+int free_block_table_slot(unsigned inode_index) {
+    if (inode_index > NUM_OF_DATA_BLOCKS) {
+        syslog(LOG_ERR, "Node index corrupted!");
+        return -1;
+    }
+
+    data_block_table[inode_index].allocated = false;
+    data_block_table[inode_index].inode_index = -1;
 }

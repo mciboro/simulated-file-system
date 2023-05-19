@@ -12,8 +12,11 @@ extern int errno;
 #define IPC_RESPONSE_KEY 2345L
 #define BUFFER_SIZE 256
 #define MAX_MSG_SIZE 4096
-#define DEFAULT_BLKSIZE 4096
 #define MAX_FILENAME_LEN 256
+
+#define DATA_BLOCK_ALLOC_SIZE 4096
+#define NUM_OF_DATA_BLOCKS 1000
+#define FILE_MAX_BLOCKS 100
 
 typedef unsigned int fd_type;
 
@@ -27,7 +30,7 @@ struct request_t {
     unsigned data_size;
     unsigned data_offset;
     unsigned part_size;
-    char data[128];
+    char data[];
 };
 
 struct response_t {
@@ -42,7 +45,6 @@ struct response_t {
 
 struct stat_t {
     off_t st_size;           /* Całkowity rozmiar w bajtach */
-    unsigned st_blksize;     /* Rozmiar bloku dla systemu plików I/O */
     struct timespec st_atim; /* Czas ostatniego dostępu */
     struct timespec st_mtim; /* Czas ostatniej modyfikacji */
     struct timespec st_ctim; /* Czas ostatniej zmiany statusu */
