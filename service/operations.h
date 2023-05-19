@@ -14,7 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "common.h"
+#include "../common.h"
 #include "inode.h"
 #include "req_buffer.h"
 
