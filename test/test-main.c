@@ -24,21 +24,21 @@ CTEST(suite3, test3) {
 }
 
 // req_buffer.c tests
-//test req_buffer_create (when size > 0) 
+
+// req_buffer_create 
 CTEST(suite4, test4) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
     int res = req_buffer_create(&rbuf, 256);
     ASSERT_EQUAL(0, res);
 }
 
-//test req_buffer_create (when size <= 0) 
 CTEST(suite5, test5) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
     int res = req_buffer_create(&rbuf, 0);
     ASSERT_EQUAL(-1, res);
 }
 
-// test req_buffer_destroy
+// req_buffer_destroy
 CTEST(suite6, test6) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
     int res = req_buffer_create(&rbuf, 256);
@@ -48,28 +48,40 @@ CTEST(suite6, test6) {
 
 CTEST(suite7, test7) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
-    int res2 = req_bufer_destroy(&rbuf);
-    ASSERT_EQUAL(0, res2);
+    int res = req_bufer_destroy(&rbuf);
+    ASSERT_EQUAL(0, res);
 }
 
-// test when data is null - FIX
-/*CTEST(suite10, test10) {
+CTEST(suite8, test8) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
+    int res = req_bufer_destroy(&rbuf);
+    int res2 = req_bufer_destroy(&rbuf);
+    ASSERT_EQUAL(-1, res2);
+}
+
+CTEST(suite9, test9) {
+    struct req_buffer_t *rbuf = NULL;
+    int res = req_bufer_destroy(&rbuf);
+    ASSERT_EQUAL(-1, res);
+}
+
+// handle_msg 
+CTEST(suite10, test10) {
+    struct req_buffer_t *rbuf = NULL;
+    struct request_t *msg = malloc(MAX_MSG_SIZE);
+    int res = handle_msg(rbuf, msg);
+    ASSERT_EQUAL(-1, res);
+}
+
+// get_service_req
+CTEST(suite11, test11) {
+    struct req_buffer_t *rbuf = NULL;
     struct service_req_t *req = NULL;
     int res = get_service_req(rbuf, &req);
-    ASSERT_EQUAL(-2, res);
-}*/
+    ASSERT_EQUAL(-1, res);
+}
 
-// test when both data and rbuf is not null - FIX
-/*CTEST(suite10, test10) {
-    struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
-    struct service_req_t *req = {0};
-    int res = get_service_req(rbuf, &req);
-    ASSERT_EQUAL(0, res);
-}*/
-
-// test when rbuf is null
-CTEST(suite9, test9) {
+CTEST(suite12, test12) {
     struct req_buffer_t *rbuf = NULL;
     struct service_req_t *req = {0}; 
     int res = get_service_req(rbuf, &req);
