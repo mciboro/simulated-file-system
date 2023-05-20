@@ -1,4 +1,4 @@
-#include "common.h"
+#include "../common.h"
 #include "inode.h"
 #include "operations.h"
 #include "req_buffer.h"
@@ -102,6 +102,9 @@ void *operate(void *worker_args) {
         case STAT:
             service_stat(req);
             break;
+        case RENAME:
+            service_rename(req);
+            break;
         // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");
@@ -167,6 +170,7 @@ int main() {
     }
 
     open_inode_table(&inode_table);
+    open_data_block_table(&data_block_table);
 
     openlog("libfs-service", LOG_PID, LOG_DAEMON);
     syslog(LOG_INFO, "Libfs service started");
@@ -192,6 +196,7 @@ int main() {
     req_bufer_destroy(&server_buf);
     close_inode_table(inode_table);
     close_file_descriptors_table(descriptor_table);
+    close_data_block_table(data_block_table);
 
     syslog(LOG_INFO, "Libfs service ended");
     closelog();
