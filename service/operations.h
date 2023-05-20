@@ -14,9 +14,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../common.h"
+#include "common.h"
 #include "inode.h"
 #include "req_buffer.h"
 
 int service_create(struct service_req_t *req);
+int service_chmode(struct service_req_t *req);
+int service_stat(struct service_req_t *req);
 int service_rename(struct service_req_t *req);

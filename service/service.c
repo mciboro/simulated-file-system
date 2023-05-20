@@ -96,9 +96,16 @@ void *operate(void *worker_args) {
         case CREATE:
             service_create(req);
             break;
+        case CHMODE:
+            service_chmode(req);
+            break;
+        case STAT:
+            service_stat(req);
+            break;
         case RENAME:
             service_rename(req);
             break;
+        // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");
             exit(EXIT_FAILURE);

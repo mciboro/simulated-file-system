@@ -109,3 +109,136 @@ int service_rename(struct service_req_t *req) {
 
     return 0;
 }
+
+int service_chmode(struct service_req_t *req)
+{
+    syslog(LOG_INFO, "Handling CHMODE operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_chmode() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct chmode_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        long access_mode;
+        char filename[256];
+    } args;
+
+    args = *(struct chmode_args_t *)req->data;
+
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "service_chmode() - Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *path = strcat(strcat(pw->pw_dir, "/libfs/"), args.filename);
+    struct stat file_stat;
+    if (stat(path, &file_stat) == -1) {
+        syslog(LOG_ERR, "service_chmode() - Cannot retrieve info about file");
+        exit(EXIT_FAILURE);
+    }
+
+    if (file_stat.st_uid != args.file_owner || file_stat.st_gid != args.file_group) {
+        syslog(LOG_ERR, "service_chmode() - File owner or group doesn't match");
+        exit(EXIT_FAILURE);
+    }
+
+    if (chmod(path, args.access_mode) == -1) {
+        syslog(LOG_ERR, "service_chmode() - Cannot change file mode");
+        exit(EXIT_FAILURE);
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    msg->status = SUCCESS;
+    msg->multipart = false;
+    msg->data_size = 0;
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size, 0) == -1) {
+        syslog(LOG_ERR, "service_chmode() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return 0;
+}
+
+int service_stat(struct service_req_t *req)
+{
+    syslog(LOG_INFO, "Handling STAT operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_stat() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct stat_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        char filename[256];
+    } args;
+
+    args = *(struct stat_args_t *)req->data;
+
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "service_stat() - Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *path = strcat(strcat(pw->pw_dir, "/libfs/"), args.filename);
+    struct stat file_stat;
+    if (stat(path, &file_stat) == -1) {
+        syslog(LOG_ERR, "service_stat() - Cannot retrieve info about file");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (file_stat.st_uid != args.file_owner || file_stat.st_gid != args.file_group) {
+        syslog(LOG_ERR, "service_stat() - File owner or group doesn't match");
+        exit(EXIT_FAILURE);
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t) + sizeof(struct stat_t));
+    memset(msg, 0, sizeof(struct response_t) + sizeof(struct stat_t));
+    msg->seq = req->seq;
+    msg->status = SUCCESS;
+    msg->multipart = false;
+    msg->data_size = sizeof(struct stat_t);
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    memset(msg->data, 0, sizeof(struct stat_t));
+    struct stat_t *libfs_stat = (struct stat_t *)msg->data;
+    libfs_stat->st_size = file_stat.st_size;
+    libfs_stat->st_blksize = file_stat.st_blksize;
+    libfs_stat->st_atim = file_stat.st_atim;
+    libfs_stat->st_mtim = file_stat.st_mtim;
+    libfs_stat->st_ctim = file_stat.st_ctim;
+    memcpy(msg->data, libfs_stat, sizeof(struct stat_t));
+    
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size, 0) == -1) {
+        syslog(LOG_ERR, "service_stat() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return 0;
+}
