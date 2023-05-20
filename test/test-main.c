@@ -4,8 +4,8 @@
 #define CTEST_SEGFAULT
 #include "ctest.h"
 
-#include "../service/operations.h"
-#include "../service/req_buffer.h"
+#include "service/operations.h"
+#include "service/req_buffer.h"
 
 
 //CTEST(suite1, test1) {}
