@@ -23,7 +23,8 @@ enable_testing()
 
 file(GLOB_RECURSE SOURCE_FILES ${PROJECT_SOURCE_DIR}/lib/libfs.c ${PROJECT_SOURCE_DIR}/common.h)
 file(GLOB TEST_SOURCES ${PROJECT_SOURCE_DIR}/test/test-*.c)
-add_executable(runUnitTests ${TEST_SOURCES} ${SOURCE_FILES} ${PROJECT_SOURCE_DIR}/test/ctest.h)
+add_executable(runUnitTests ${TEST_SOURCES} ${SOURCE_FILES} ${PROJECT_SOURCE_DIR}/test/ctest.h service/req_buffer.c service/operations.c service/inode.c common.c)
 
+target_link_libraries(runUnitTests pthread)
 target_include_directories(runUnitTests PUBLIC .)
 add_test(NAME runUnitTests COMMAND runUnitTests)
