@@ -21,7 +21,7 @@ extern int errno;
 typedef unsigned int fd_type;
 
 enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
-enum Status { SUCCESS, FAILURE };
+enum Status { SUCCESS, FAILURE, FILENAME_TAKEN };
 
 struct request_t {
     long seq;

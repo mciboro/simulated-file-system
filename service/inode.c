@@ -89,13 +89,13 @@ int open_inode_table(struct inode_t **head) {
     return 0;
 }
 
-int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_group, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, char *filename, uid_t owner, gid_t owner_group, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
     struct inode_t *node_iter = *head;
     while (node_iter) {
         if (strcmp(node_iter->filename, filename) == 0) {
             syslog(LOG_INFO, "File already exists!");
-            return node_iter->index;
+            return -1;
         }
         node_iter = node_iter->next;
     }
@@ -127,11 +127,15 @@ int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_gr
         node->prev = curr;
     }
 
-    return node->index;
+    *index = node->index;
+    return 0;
 }
 
 int rename_inode(struct inode_t *head, char *oldname, char *newname) {
     struct inode_t *node_iter = head;
+    if (check_if_filename_taken(head, newname)) {
+        return -2;
+    } 
     while (node_iter) {
         if (strcmp(node_iter->filename, oldname) == 0) {
             memset(node_iter->filename, 0, MAX_FILENAME_LEN);
@@ -254,6 +258,18 @@ int remove_inode(struct inode_t **head, const char *name) {
     }
 
     return -1;
+}
+
+int check_if_filename_taken(struct inode_t *head, const char *name) {
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            return true;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return false;
 }
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset) {

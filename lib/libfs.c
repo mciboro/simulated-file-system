@@ -9,7 +9,6 @@ fd_type libfs_create(char *const name, long mode) {
         malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
     memset(create_req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
 
-
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
         fprintf(stderr, "libfs_create() - Failed to open message queue\n");
@@ -60,7 +59,9 @@ fd_type libfs_create(char *const name, long mode) {
     }
 
     if (status == SUCCESS) {
-        fprintf(stderr, "File %s created successfully. New desc: %d\n", name, *(fd_type *)create_resp->data);
+        fprintf(stderr, "File %s created successfully. New desc: %d.\n", name, *(fd_type *)create_resp->data);
+    } else if (status == FILENAME_TAKEN) {
+        fprintf(stderr, "Filename %s has been already taken.\n", name);
     } else {
         fprintf(stderr, "File %s wasn't created!\n", name);
     }
@@ -125,7 +126,9 @@ int libfs_rename(const char *oldname, const char *newname) {
     }
 
     if (status == SUCCESS) {
-        fprintf(stderr, "File %s changed name successfully to %s\n", oldname, newname);
+        fprintf(stderr, "File %s changed name successfully to %s.\n", oldname, newname);
+    } else if (status == FILENAME_TAKEN) {
+        fprintf(stderr, "Filename %s has already been taken.\n", newname);
     } else {
         fprintf(stderr, "Filename wasn't created!\n");
     }
@@ -136,8 +139,7 @@ int libfs_rename(const char *oldname, const char *newname) {
     return status;
 }
 
-int libfs_chmode(char *const name, long mode)
-{
+int libfs_chmode(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
     struct request_t *req =
@@ -204,12 +206,10 @@ int libfs_chmode(char *const name, long mode)
     return 0;
 }
 
-int libfs_stat(const char *path, struct stat_t *buf)
-{
+int libfs_stat(const char *path, struct stat_t *buf) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *req =
-        malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
+    struct request_t *req = malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
     memset(req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
@@ -260,8 +260,8 @@ int libfs_stat(const char *path, struct stat_t *buf)
 
     if (status == SUCCESS) {
         buf = stat;
-        fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n",
-                path, stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
+        fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n", path,
+                stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
     } else {
         fprintf(stderr, "Unable to get file stat for file %s!\n", path);
     }
