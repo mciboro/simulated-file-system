@@ -144,6 +144,33 @@ int rename_inode(struct inode_t *head, char *oldname, char *newname) {
     return -1;
 }
 
+int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            *owner = node_iter->owner;
+            *group = node_iter->owner_group;
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
+}
+
+int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat) {
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            memcpy(stat, &node_iter->stat, sizeof(struct stat_t));
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
+}
+
 int close_inode_table(struct inode_t *head) {
 
     FILE *inode_file = NULL;
@@ -185,6 +212,19 @@ int close_inode_table(struct inode_t *head) {
 
     fclose(inode_file);
     return 0;
+}
+
+int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            node_iter->mode = mode;
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
 }
 
 int remove_inode(struct inode_t **head, const char *name) {
