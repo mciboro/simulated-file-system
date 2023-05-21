@@ -45,6 +45,9 @@ int add_inode(struct inode_t **head, char *filename, uid_t owner, gid_t owner_gr
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim);
 int rename_inode(struct inode_t *head, char *oldname, char *newname);
 int remove_inode(struct inode_t **head, const char *name);
+int chmod_inode(struct inode_t *head, const char *name, unsigned mode);
+int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group);
+int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat);
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset);
 int close_file_descriptors_table(struct descriptor_t *head);

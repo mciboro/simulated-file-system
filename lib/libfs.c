@@ -133,8 +133,7 @@ int libfs_rename(const char *oldname, const char *newname) {
     free(rename_req);
     free(rename_resp);
 
-    return *(fd_type *)resp->data;
-    return 0;
+    return status;
 }
 
 int libfs_chmode(char *const name, long mode)
@@ -143,6 +142,7 @@ int libfs_chmode(char *const name, long mode)
     unsigned copy_offset = 0;
     struct request_t *req =
         malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
+    memset(req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -156,7 +156,7 @@ int libfs_chmode(char *const name, long mode)
     req->type = CHMODE;
     req->seq = get_seq();
     req->multipart = 0;
-    req->data_size = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
+    req->data_size = sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1;
     req->part_size = req->data_size;
     req->data_offset = 0;
 
@@ -183,7 +183,7 @@ int libfs_chmode(char *const name, long mode)
     struct response_t *resp = malloc(sizeof(struct response_t));
 
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t), req->seq, 0);
+    msgrcv(response_queue, resp, sizeof(struct response_t) - sizeof(long), req->seq, 0);
     msg_len = sizeof(*resp) + resp->part_size;
     status = resp->status;
 
@@ -210,6 +210,7 @@ int libfs_stat(const char *path, struct stat_t *buf)
     unsigned copy_offset = 0;
     struct request_t *req =
         malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
+    memset(req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -247,7 +248,7 @@ int libfs_stat(const char *path, struct stat_t *buf)
 
     struct response_t *resp = malloc(sizeof(struct response_t) + sizeof(struct stat_t));
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t) + sizeof(struct stat_t), req->seq, 0);
+    msgrcv(response_queue, resp, sizeof(struct response_t) + sizeof(struct stat_t) - sizeof(long), req->seq, 0);
     msg_len = sizeof(*resp) + resp->part_size;
     status = resp->status;
 
@@ -259,8 +260,8 @@ int libfs_stat(const char *path, struct stat_t *buf)
 
     if (status == SUCCESS) {
         buf = stat;
-        fprintf(stderr, "File %s stat: st_size: %ld, st_blksize: %u, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n",
-                path, stat->st_size, stat->st_blksize, stat->st_atime, stat->st_mtime, stat->st_ctime);
+        fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n",
+                path, stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
     } else {
         fprintf(stderr, "Unable to get file stat for file %s!\n", path);
     }
@@ -268,6 +269,5 @@ int libfs_stat(const char *path, struct stat_t *buf)
     free(req);
     free(resp);
 
-    return resp->status;
-    return 0;
+    return status;
 }

@@ -43,7 +43,7 @@ void *receive(void *service_args) {
         int msg_len = 0;
 
         syslog(LOG_INFO, "Waiting for request...");
-        if (msgrcv(msgid, msg, MAX_MSG_SIZE, 0, 0) == -1) {
+        if (msgrcv(msgid, msg, MAX_MSG_SIZE - sizeof(long), 0, 0) == -1) {
             if (errno == EINTR) {
                 syslog(LOG_INFO, "Interrupted by signal. Breaking...");
                 free(msg);
