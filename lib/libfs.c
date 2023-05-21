@@ -5,9 +5,6 @@ unsigned seq_counter = 0;
 fd_type libfs_create(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *create_req =
-        malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
-    memset(create_req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -18,24 +15,45 @@ fd_type libfs_create(char *const name, long mode) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    create_req->type = CREATE;
-    create_req->seq = get_seq();
-    create_req->multipart = 0;
-    create_req->data_size = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
-    create_req->part_size = create_req->data_size;
-    create_req->data_offset = 0;
+    unsigned seq = get_seq();
 
-    memcpy(create_req->data + copy_offset, &uid, sizeof(uid));
+    unsigned data_to_copy = 0, data_size = 0;
+    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
+
+    char copy_buf[data_size];
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
     copy_offset += sizeof(uid);
-    memcpy(create_req->data + copy_offset, &gid, sizeof(gid));
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
     copy_offset += sizeof(gid);
-    memcpy(create_req->data + copy_offset, &mode, sizeof(mode));
+    memcpy(copy_buf + copy_offset, &mode, sizeof(mode));
     copy_offset += sizeof(mode);
-    strcpy(create_req->data + copy_offset, name);
+    strcpy(copy_buf + copy_offset, name);
 
-    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) == -1) {
-        fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
-        exit(EXIT_FAILURE);
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+        struct request_t *create_req = malloc(sizeof(struct request_t) + part_data_size);
+        memset(create_req, 0, sizeof(struct request_t) + part_data_size);
+
+        create_req->type = CREATE;
+        create_req->seq = seq;
+        create_req->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        create_req->data_size = data_size;
+        create_req->part_size = part_data_size;
+        create_req->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        memcpy(create_req->data, copy_buf + create_req->data_offset, create_req->part_size);
+
+        if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+            -1) {
+            fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
+            exit(EXIT_FAILURE);
+        }
+
+        free(create_req);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
@@ -45,31 +63,52 @@ fd_type libfs_create(char *const name, long mode) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *create_resp = malloc(sizeof(struct response_t) + sizeof(fd_type));
-    memset(create_resp, 0, sizeof(struct request_t) + sizeof(fd_type));
+    struct response_t *create_resp = malloc(MAX_MSG_SIZE);
+    memset(create_resp, 0, MAX_MSG_SIZE);
 
-    int msg_len = 0, status = 0;
-    msgrcv(response_queue, create_resp, sizeof(struct response_t) + sizeof(fd_type) - sizeof(long), create_req->seq, 0);
-    msg_len = sizeof(*create_resp) + create_resp->part_size;
-    status = create_resp->status;
-
-    if (msg_len <= 0) {
-        syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
+    if (msgrcv(response_queue, create_resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
+        syslog(LOG_ERR, "Error in msgrcv()");
         exit(EXIT_FAILURE);
     }
 
+    int status = create_resp->status;
+    unsigned resp_data_size = create_resp->data_size;
+    unsigned copied_data = create_resp->part_size;
+    char resp_buf[resp_data_size];
+
+    memcpy(resp_buf, create_resp->data, copied_data);
+    free(create_resp);
+
+    while (copied_data < resp_data_size) {
+        struct response_t *further_resp = malloc(MAX_MSG_SIZE);
+        memset(further_resp, 0, MAX_MSG_SIZE);
+
+        if (msgrcv(response_queue, further_resp, MAX_MSG_SIZE, seq, 0) == -1) {
+            syslog(LOG_ERR, "Error in msgrcv()");
+            exit(EXIT_FAILURE);
+        }
+
+        if (!further_resp->multipart) {
+            syslog(LOG_ERR, "Error in msgrcv() - Msg should be multipart");
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy(resp_buf + further_resp->data_offset, further_resp->data, further_resp->part_size);
+        copied_data += further_resp->part_size;
+
+        status = further_resp->status;
+        free(further_resp);
+    }
+
     if (status == SUCCESS) {
-        fprintf(stderr, "File %s created successfully. New desc: %d.\n", name, *(fd_type *)create_resp->data);
+        fprintf(stderr, "File %s created successfully. New desc: %d.\n", name, *(fd_type *)resp_buf);
     } else if (status == FILENAME_TAKEN) {
         fprintf(stderr, "Filename %s has been already taken.\n", name);
     } else {
         fprintf(stderr, "File %s wasn't created!\n", name);
     }
 
-    fd_type new_desc = *(fd_type *)create_resp->data;
-
-    free(create_req);
-    free(create_resp);
+    fd_type new_desc = *(fd_type *)resp_buf;
 
     return new_desc;
 }
