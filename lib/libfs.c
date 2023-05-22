@@ -116,8 +116,6 @@ fd_type libfs_create(char *const name, long mode) {
 int libfs_rename(const char *oldname, const char *newname) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *rename_req = malloc(sizeof(struct request_t) + strlen(oldname) + 1 + strlen(newname) + 1);
-    memset(rename_req, 0, sizeof(struct request_t) + strlen(oldname) + 1 + strlen(newname) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -128,20 +126,45 @@ int libfs_rename(const char *oldname, const char *newname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    rename_req->type = RENAME;
-    rename_req->seq = get_seq();
-    rename_req->multipart = 0;
-    rename_req->data_size = strlen(oldname) + 1 + strlen(newname) + 1;
-    rename_req->part_size = rename_req->data_size;
-    rename_req->data_offset = 0;
+    unsigned seq = get_seq();
 
-    strcpy(rename_req->data + copy_offset, oldname);
+    unsigned data_to_copy = 0, data_size = 0;
+    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + strlen(oldname) + 1 + strlen(newname) + 1;
+
+    char copy_buf[data_size];
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
+    copy_offset += sizeof(uid);
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
+    copy_offset += sizeof(gid);
+    strcpy(copy_buf + copy_offset, oldname);
     copy_offset += strlen(oldname) + 1;
-    strcpy(rename_req->data + copy_offset, newname);
+    strcpy(copy_buf + copy_offset, newname);
 
-    if (msgsnd(request_queue, rename_req, sizeof(struct request_t) + rename_req->part_size - sizeof(long), 0) == -1) {
-        fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
-        exit(EXIT_FAILURE);
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+        struct request_t *rename_req = malloc(sizeof(struct request_t) + part_data_size);
+        memset(rename_req, 0, sizeof(struct request_t) + part_data_size);
+
+        rename_req->type = RENAME;
+        rename_req->seq = seq;
+        rename_req->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        rename_req->data_size = data_size;
+        rename_req->part_size = part_data_size;
+        rename_req->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        memcpy(rename_req->data, copy_buf + rename_req->data_offset, rename_req->part_size);
+
+        if (msgsnd(request_queue, rename_req, sizeof(struct request_t) + rename_req->part_size - sizeof(long), 0) ==
+            -1) {
+            fprintf(stderr, "libfs_rename() - Failed to send message to queue\n");
+            exit(EXIT_FAILURE);
+        }
+
+        free(rename_req);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
@@ -155,7 +178,7 @@ int libfs_rename(const char *oldname, const char *newname) {
     memset(rename_resp, 0, sizeof(struct response_t));
 
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, rename_resp, sizeof(struct response_t) - sizeof(long), rename_req->seq, 0);
+    msgrcv(response_queue, rename_resp, sizeof(struct response_t) - sizeof(long), seq, 0);
     msg_len = sizeof(*rename_resp) + rename_resp->part_size;
     status = rename_resp->status;
 
@@ -169,10 +192,9 @@ int libfs_rename(const char *oldname, const char *newname) {
     } else if (status == FILENAME_TAKEN) {
         fprintf(stderr, "Filename %s has already been taken.\n", newname);
     } else {
-        fprintf(stderr, "Filename wasn't created!\n");
+        fprintf(stderr, "Filename wasn't changed!\n");
     }
 
-    free(rename_req);
     free(rename_resp);
 
     return status;
@@ -181,9 +203,6 @@ int libfs_rename(const char *oldname, const char *newname) {
 int libfs_chmode(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *req =
-        malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
-    memset(req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -194,24 +213,45 @@ int libfs_chmode(char *const name, long mode) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    req->type = CHMODE;
-    req->seq = get_seq();
-    req->multipart = 0;
-    req->data_size = sizeof(uid_t) + sizeof(gid_t) + sizeof(long) + strlen(name) + 1;
-    req->part_size = req->data_size;
-    req->data_offset = 0;
+    unsigned seq = get_seq();
 
-    memcpy(req->data + copy_offset, &uid, sizeof(uid));
+    unsigned data_to_copy = 0, data_size = 0;
+    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + sizeof(mode) + strlen(name) + 1;
+
+    char copy_buf[data_size];
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
     copy_offset += sizeof(uid);
-    memcpy(req->data + copy_offset, &gid, sizeof(gid));
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
     copy_offset += sizeof(gid);
-    memcpy(req->data + copy_offset, &mode, sizeof(mode));
+    memcpy(copy_buf + copy_offset, &mode, sizeof(mode));
     copy_offset += sizeof(mode);
-    strcpy(req->data + copy_offset, name);
+    strcpy(copy_buf + copy_offset, name);
 
-    if (msgsnd(request_queue, req, sizeof(struct request_t) + req->part_size - sizeof(long), 0) == -1) {
-        fprintf(stderr, "libfs_chmode() - Failed to send message to queue\n");
-        exit(EXIT_FAILURE);
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+        struct request_t *create_req = malloc(sizeof(struct request_t) + part_data_size);
+        memset(create_req, 0, sizeof(struct request_t) + part_data_size);
+
+        create_req->type = CHMODE;
+        create_req->seq = seq;
+        create_req->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        create_req->data_size = data_size;
+        create_req->part_size = part_data_size;
+        create_req->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        memcpy(create_req->data, copy_buf + create_req->data_offset, create_req->part_size);
+
+        if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+            -1) {
+            fprintf(stderr, "libfs_chmode() - Failed to send message to queue\n");
+            exit(EXIT_FAILURE);
+        }
+
+        free(create_req);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
@@ -224,7 +264,7 @@ int libfs_chmode(char *const name, long mode) {
     struct response_t *resp = malloc(sizeof(struct response_t));
 
     int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t) - sizeof(long), req->seq, 0);
+    msgrcv(response_queue, resp, sizeof(struct response_t) - sizeof(long), seq, 0);
     msg_len = sizeof(*resp) + resp->part_size;
     status = resp->status;
 
@@ -239,7 +279,6 @@ int libfs_chmode(char *const name, long mode) {
         fprintf(stderr, "File %s mode wasn't changed!\n", name);
     }
 
-    free(req);
     free(resp);
 
     return 0;
@@ -248,8 +287,6 @@ int libfs_chmode(char *const name, long mode) {
 int libfs_stat(const char *path, struct stat_t *buf) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
-    struct request_t *req = malloc(sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
-    memset(req, 0, sizeof(struct request_t) + sizeof(uid_t) + sizeof(gid_t) + strlen(path) + 1);
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
     if (request_queue == -1) {
@@ -260,22 +297,43 @@ int libfs_stat(const char *path, struct stat_t *buf) {
     uid_t uid = getuid();
     gid_t gid = getgid();
 
-    req->type = STAT;
-    req->seq = get_seq();
-    req->multipart = 0;
-    req->data_size = sizeof(uid) + sizeof(gid) + strlen(path) + 1;
-    req->part_size = req->data_size;
-    req->data_offset = 0;
+    unsigned seq = get_seq();
 
-    memcpy(req->data + copy_offset, &uid, sizeof(uid));
+    unsigned data_to_copy = 0, data_size = 0;
+    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + strlen(path) + 1;
+
+    char copy_buf[data_size];
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
     copy_offset += sizeof(uid);
-    memcpy(req->data + copy_offset, &gid, sizeof(gid));
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
     copy_offset += sizeof(gid);
-    strcpy(req->data + copy_offset, path);
+    strcpy(copy_buf + copy_offset, path);
 
-    if (msgsnd(request_queue, req, sizeof(struct request_t) + req->part_size - sizeof(long), 0) == -1) {
-        fprintf(stderr, "libfs_stat() - Failed to send message to queue\n");
-        exit(EXIT_FAILURE);
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+        struct request_t *create_req = malloc(sizeof(struct request_t) + part_data_size);
+        memset(create_req, 0, sizeof(struct request_t) + part_data_size);
+
+        create_req->type = STAT;
+        create_req->seq = seq;
+        create_req->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        create_req->data_size = data_size;
+        create_req->part_size = part_data_size;
+        create_req->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        memcpy(create_req->data, copy_buf + create_req->data_offset, create_req->part_size);
+
+        if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+            -1) {
+            fprintf(stderr, "libfs_stat() - Failed to send message to queue\n");
+            exit(EXIT_FAILURE);
+        }
+
+        free(create_req);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
@@ -285,28 +343,51 @@ int libfs_stat(const char *path, struct stat_t *buf) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *resp = malloc(sizeof(struct response_t) + sizeof(struct stat_t));
-    int msg_len = 0, status = 0;
-    msgrcv(response_queue, resp, sizeof(struct response_t) + sizeof(struct stat_t) - sizeof(long), req->seq, 0);
-    msg_len = sizeof(*resp) + resp->part_size;
-    status = resp->status;
+    struct response_t *resp = malloc(MAX_MSG_SIZE);
+    memset(resp, 0, MAX_MSG_SIZE);
 
-    struct stat_t *stat = (struct stat_t *)resp->data;
-    if (msg_len <= 0) {
-        syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
+    if (msgrcv(response_queue, resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
+        syslog(LOG_ERR, "Error in msgrcv()");
         exit(EXIT_FAILURE);
     }
 
+    int status = resp->status;
+    unsigned resp_data_size = resp->data_size;
+    unsigned copied_data = resp->part_size;
+    char resp_buf[resp_data_size];
+
+    memcpy(resp_buf, resp->data, copied_data);
+    free(resp);
+
+    while (copied_data < resp_data_size) {
+        struct response_t *further_resp = malloc(MAX_MSG_SIZE);
+        memset(further_resp, 0, MAX_MSG_SIZE);
+
+        if (msgrcv(response_queue, further_resp, MAX_MSG_SIZE, seq, 0) == -1) {
+            syslog(LOG_ERR, "Error in msgrcv()");
+            exit(EXIT_FAILURE);
+        }
+
+        if (!further_resp->multipart) {
+            syslog(LOG_ERR, "Error in msgrcv() - Msg should be multipart");
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy(resp_buf + further_resp->data_offset, further_resp->data, further_resp->part_size);
+        copied_data += further_resp->part_size;
+
+        status = further_resp->status;
+        free(further_resp);
+    }
+
     if (status == SUCCESS) {
-        buf = stat;
+        memcpy(buf, resp_buf, sizeof(struct stat_t));
+        struct stat_t *stat = (struct stat_t *)resp_buf;
         fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n", path,
                 stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
     } else {
         fprintf(stderr, "Unable to get file stat for file %s!\n", path);
     }
-
-    free(req);
-    free(resp);
 
     return status;
 }

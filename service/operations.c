@@ -227,27 +227,44 @@ int service_stat(struct service_req_t *req) {
         exit(EXIT_FAILURE);
     }
 
-    struct response_t *msg = malloc(sizeof(struct response_t) + sizeof(struct stat_t));
-    memset(msg, 0, sizeof(struct response_t) + sizeof(struct stat_t));
-    msg->seq = req->seq;
-    msg->status = SUCCESS;
-    msg->multipart = false;
-    msg->data_size = sizeof(struct stat_t);
-    msg->data_offset = 0;
-    msg->part_size = msg->data_size;
+    unsigned data_size = 0, data_to_copy = 0;
+    data_size = data_to_copy = sizeof(struct stat_t);
+    char copy_buf[data_size];
 
-    memset(msg->data, 0, sizeof(struct stat_t));
-    struct stat_t *libfs_stat = (struct stat_t *)msg->data;
-    get_file_stat_from_inode(inode_table, args.filename, libfs_stat);
-
-    memcpy(msg->data, libfs_stat, sizeof(struct stat_t));
-
-    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
-        syslog(LOG_ERR, "service_stat() - Failed to send message to queue");
-        exit(EXIT_FAILURE);
+    if (get_file_stat_from_inode(inode_table, args.filename, (struct stat_t *)&copy_buf) == -1) {
+        data_to_copy = data_size = 0;
     }
 
-    free(msg);
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+
+        struct response_t *msg = malloc(sizeof(struct response_t) + part_data_size);
+        memset(msg, 0, sizeof(struct response_t) + part_data_size);
+        msg->seq = req->seq;
+        if (data_size > 0) {
+            msg->status = SUCCESS;
+        } else {
+            msg->status = FAILURE;
+        }
+        msg->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        msg->data_size = data_size;
+        msg->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        msg->part_size = part_data_size;
+        memcpy(msg->data, copy_buf + msg->data_offset, msg->part_size);
+
+        if (msgsnd(msgid, msg, sizeof(*msg) + msg->part_size - sizeof(long), 0) == -1) {
+            syslog(LOG_ERR, "service_create() - Failed to send message to queue");
+            exit(EXIT_FAILURE);
+        }
+
+        free(msg);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+    }
 
     return 0;
 }
