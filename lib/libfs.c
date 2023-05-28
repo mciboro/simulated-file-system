@@ -129,13 +129,9 @@ int libfs_rename(const char *oldname, const char *newname) {
     unsigned seq = get_seq();
 
     unsigned data_to_copy = 0, data_size = 0;
-    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + strlen(oldname) + 1 + strlen(newname) + 1;
+    data_size = data_to_copy = strlen(oldname) + 1 + strlen(newname) + 1;
 
     char copy_buf[data_size];
-    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
-    copy_offset += sizeof(uid);
-    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
-    copy_offset += sizeof(gid);
     strcpy(copy_buf + copy_offset, oldname);
     copy_offset += strlen(oldname) + 1;
     strcpy(copy_buf + copy_offset, newname);

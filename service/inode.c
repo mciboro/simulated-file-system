@@ -3,6 +3,7 @@
 struct inode_t *inode_table = NULL;
 struct descriptor_t *descriptor_table = NULL;
 struct data_block_t *data_block_table = NULL;
+struct filename_inode_t *filename_table = NULL;
 
 int open_inode_table(struct inode_t **head) {
     FILE *inode_file = NULL;
@@ -19,7 +20,7 @@ int open_inode_table(struct inode_t **head) {
     inode_file = fopen(strcat(libfs_dir, "/inodes"), "r");
 
     if (!inode_file) {
-        syslog(LOG_ERR, "service_create() - No file node");
+        syslog(LOG_ERR, "open_inode_table() - No file node");
         return 0;
     }
 
@@ -56,9 +57,6 @@ int open_inode_table(struct inode_t **head) {
         copy_off += strlen(token) + 1;
         node->stat.st_ctim.tv_sec = atoi(token);
         node->stat.st_ctim.tv_nsec = atoi(token) * 1000000;
-        token = strtok(line + copy_off, ",");
-        copy_off += strlen(token) + 1;
-        strcpy(node->filename, token);
         for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
             token = strtok(line + copy_off, ",");
             copy_off += strlen(token) + 1;
@@ -89,16 +87,8 @@ int open_inode_table(struct inode_t **head) {
     return 0;
 }
 
-int add_inode(struct inode_t **head, fd_type *index, char *filename, uid_t owner, gid_t owner_group, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
-    struct inode_t *node_iter = *head;
-    while (node_iter) {
-        if (strcmp(node_iter->filename, filename) == 0) {
-            syslog(LOG_INFO, "File already exists!");
-            return -1;
-        }
-        node_iter = node_iter->next;
-    }
 
     struct inode_t *node = malloc(sizeof(struct inode_t));
 
@@ -109,7 +99,6 @@ int add_inode(struct inode_t **head, fd_type *index, char *filename, uid_t owner
     node->stat.st_atim = st_atim;
     node->stat.st_mtim = st_mtim;
     node->stat.st_ctim = st_ctim;
-    strcpy(node->filename, filename);
     memset(node->data_blocks, 0, sizeof(unsigned) * FILE_MAX_BLOCKS);
     node->next = NULL;
     node->prev = NULL;
@@ -131,27 +120,16 @@ int add_inode(struct inode_t **head, fd_type *index, char *filename, uid_t owner
     return 0;
 }
 
-int rename_inode(struct inode_t *head, char *oldname, char *newname) {
-    struct inode_t *node_iter = head;
-    if (check_if_filename_taken(head, newname)) {
-        return -2;
-    } 
-    while (node_iter) {
-        if (strcmp(node_iter->filename, oldname) == 0) {
-            memset(node_iter->filename, 0, MAX_FILENAME_LEN);
-            strcpy(node_iter->filename, newname);
-            return 0;
-        }
-        node_iter = node_iter->next;
+int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return -1;
     }
 
-    return -1;
-}
-
-int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
     struct inode_t *node_iter = head;
     while (node_iter) {
-        if (strcmp(node_iter->filename, name) == 0) {
+        if (node_iter->index == node_index) {
             *owner = node_iter->owner;
             *group = node_iter->owner_group;
             return 0;
@@ -163,9 +141,15 @@ int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owne
 }
 
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return -1;
+    }
+
     struct inode_t *node_iter = head;
     while (node_iter) {
-        if (strcmp(node_iter->filename, name) == 0) {
+        if (node_iter->index == node_index) {
             memcpy(stat, &node_iter->stat, sizeof(struct stat_t));
             return 0;
         }
@@ -191,7 +175,7 @@ int close_inode_table(struct inode_t *head) {
     inode_file = fopen(strcat(libfs_dir, "/inodes"), "w");
 
     if (!inode_file) {
-        syslog(LOG_ERR, "service_create() - Node file descriptor corrupted");
+        syslog(LOG_ERR, "close_inode_table() - Node file descriptor corrupted");
         exit(EXIT_FAILURE);
     }
 
@@ -200,9 +184,8 @@ int close_inode_table(struct inode_t *head) {
     fseek(inode_file, 0, SEEK_SET);
 
     while (node) {
-        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%ld,%ld,%ld,%s,", node->index, node->owner, node->owner_group, node->mode,
-                node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec,
-                node->filename);
+        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->mode,
+                node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec);
 
         for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
             fprintf(inode_file, "%d,", node->data_blocks[i]);
@@ -219,9 +202,15 @@ int close_inode_table(struct inode_t *head) {
 }
 
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return -1;
+    }
+
     struct inode_t *node_iter = head;
     while (node_iter) {
-        if (strcmp(node_iter->filename, name) == 0) {
+        if (node_iter->index == node_index) {
             node_iter->mode = mode;
             return 0;
         }
@@ -232,9 +221,15 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
 }
 
 int remove_inode(struct inode_t **head, const char *name) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return -1;
+    }
+
     struct inode_t *node_iter = *head;
     while (node_iter) {
-        if (strcmp(node_iter->filename, name) == 0) {
+        if (node_iter->index == node_index) {
             if (node_iter->prev) {
                 node_iter->prev->next = node_iter->next;
             } else {
@@ -258,18 +253,6 @@ int remove_inode(struct inode_t **head, const char *name) {
     }
 
     return -1;
-}
-
-int check_if_filename_taken(struct inode_t *head, const char *name) {
-    struct inode_t *node_iter = head;
-    while (node_iter) {
-        if (strcmp(node_iter->filename, name) == 0) {
-            return true;
-        }
-        node_iter = node_iter->next;
-    }
-
-    return false;
 }
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset) {
@@ -357,7 +340,7 @@ int open_data_block_table(struct data_block_t **head) {
     data_block_file = fopen(strcat(libfs_dir, "/data-blocks"), "r");
 
     if (!data_block_file) {
-        syslog(LOG_ERR, "service_create() - No file node");
+        syslog(LOG_ERR, "open_data_block_table() - No file node");
         return 0;
     }
 
@@ -404,7 +387,7 @@ int close_data_block_table(struct data_block_t *head) {
     data_block_file = fopen(strcat(libfs_dir, "/data-blocks"), "w");
 
     if (!data_block_file) {
-        syslog(LOG_ERR, "service_create() - Node file descriptor corrupted");
+        syslog(LOG_ERR, "close_data_block_table() - Node file descriptor corrupted");
         exit(EXIT_FAILURE);
     }
 
@@ -437,7 +420,7 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf) {
             data_block_file = fopen(strcat(libfs_dir, "/data"), "a+");
 
             if (!data_block_file) {
-                syslog(LOG_ERR, "service_create() - Node file descriptor corrupted");
+                syslog(LOG_ERR, "occupy_block_table_slot() - Node file descriptor corrupted");
                 exit(EXIT_FAILURE);
             }
 
@@ -459,4 +442,166 @@ int free_block_table_slot(unsigned inode_index) {
 
     data_block_table[inode_index].allocated = false;
     data_block_table[inode_index].inode_index = -1;
+}
+
+int open_filename_table(struct filename_inode_t **head) {
+    FILE *filename_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    filename_file = fopen(strcat(libfs_dir, "/filenames"), "r");
+
+    if (!filename_file) {
+        syslog(LOG_ERR, "open_filename_table() - No file node");
+        return 0;
+    }
+
+    char line[4096] = {0}, *token;
+    while (fgets(line, sizeof(line), filename_file)) {
+        struct filename_inode_t *node = malloc(sizeof(struct filename_inode_t));
+        unsigned copy_off = 0;
+        memset(node, 0, sizeof(struct filename_inode_t));
+
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
+        node->node_index = atoi(token);
+        token = strtok(line + copy_off, "\n");
+        copy_off += strlen(token) + 1;
+        strcpy(node->filename, token);
+
+        node->next = NULL;
+        node->prev = NULL;
+
+        if (*head == NULL) {
+            *head = node;
+        } else {
+            struct filename_inode_t *curr = *head;
+            while (curr->next != NULL) {
+                curr = curr->next;
+            }
+            curr->next = node;
+            node->prev = curr;
+        }
+
+        memset(line, 0, 4096);
+    }
+
+    fclose(filename_file);
+    return 0;
+}
+
+int close_filename_table(struct filename_inode_t *head) {
+
+    FILE *filename_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    filename_file = fopen(strcat(libfs_dir, "/filenames"), "w");
+
+    if (!filename_file) {
+        syslog(LOG_ERR, "close_filename_table() - Node file descriptor corrupted");
+        exit(EXIT_FAILURE);
+    }
+
+    struct filename_inode_t *node = head, *prev;
+
+    fseek(filename_file, 0, SEEK_SET);
+
+    while (node) {
+        fprintf(filename_file, "%d,%s\n", node->node_index, node->filename);
+
+        prev = node;
+        node = node->next;
+        free(prev);
+    }
+
+    fclose(filename_file);
+    return 0;
+}
+
+int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index) {
+    struct filename_inode_t *node_iter = *head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            syslog(LOG_INFO, "File already exists!");
+            return -1;
+        }
+        node_iter = node_iter->next;
+    }
+
+    struct filename_inode_t *node = malloc(sizeof(struct filename_inode_t));
+
+    node->node_index = node_index;
+    strcpy(node->filename, name);
+    node->next = NULL;
+    node->prev = NULL;
+
+    if (*head == NULL) {
+        *head = node;
+    } else {
+        struct filename_inode_t *curr = *head;
+        while (curr->next != NULL) {
+            curr = curr->next;
+        }
+        curr->next = node;
+        node->prev = curr;
+    }
+
+    return 0;
+}
+
+int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index) {
+    struct filename_inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            *node_index = node_iter->node_index;
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
+}
+
+int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname) {
+    struct filename_inode_t *node_iter = head;
+    if (check_if_filename_taken(head, newname)) {
+        return -2;
+    } 
+    while (node_iter) {
+        if (strcmp(node_iter->filename, oldname) == 0) {
+            memset(node_iter->filename, 0, MAX_FILENAME_LEN);
+            strcpy(node_iter->filename, newname);
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;    
+}
+
+int check_if_filename_taken(struct filename_inode_t *head, const char *name) {
+    struct filename_inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            return true;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return false;
 }
