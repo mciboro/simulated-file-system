@@ -171,6 +171,7 @@ int main() {
 
     open_inode_table(&inode_table);
     open_data_block_table(&data_block_table);
+    open_filename_table(&filename_table);
 
     openlog("libfs-service", LOG_PID, LOG_DAEMON);
     syslog(LOG_INFO, "Libfs service started");
@@ -197,6 +198,7 @@ int main() {
     close_inode_table(inode_table);
     close_file_descriptors_table(descriptor_table);
     close_data_block_table(data_block_table);
+    close_filename_table(filename_table);
 
     syslog(LOG_INFO, "Libfs service ended");
     closelog();

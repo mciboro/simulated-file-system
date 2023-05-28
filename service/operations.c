@@ -30,8 +30,17 @@ int service_create(struct service_req_t *req) {
     struct timespec curr_time;
     clock_gettime(CLOCK_REALTIME, &curr_time);
     fd_type node_index = 0;
-    int status = add_inode(&inode_table, &node_index, args.filename, args.file_owner, args.file_group, args.access_mode,
-                           0, curr_time, curr_time, curr_time);
+
+    int status = 0;
+    if (check_if_filename_taken(filename_table, args.filename) == 0) {
+        status = add_inode(&inode_table, &node_index, args.file_owner, args.file_group, args.access_mode, 0,
+                               curr_time, curr_time, curr_time);
+        if (add_filename_to_table(&filename_table, args.filename, node_index) == -1) {
+            status = -1;
+        }
+    } else {
+        status = -1;
+    }
 
     unsigned data_size = 0, data_to_copy = 0;
     data_size = data_to_copy = sizeof(fd_type);
@@ -101,7 +110,7 @@ int service_rename(struct service_req_t *req) {
         exit(EXIT_FAILURE);
     }
 
-    int status = rename_inode(inode_table, args.oldname, args.newname);
+    int status = rename_file(filename_table, args.oldname, args.newname);
 
     struct response_t *msg = malloc(sizeof(struct response_t));
     memset(msg, 0, sizeof(struct response_t));
