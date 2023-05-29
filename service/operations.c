@@ -33,7 +33,7 @@ int service_create(struct service_req_t *req) {
 
     int status = 0;
     if (check_if_filename_taken(filename_table, args.filename) == 0) {
-        status = add_inode(&inode_table, &node_index, args.file_owner, args.file_group, args.access_mode, 0,
+        status = add_inode(&inode_table, &node_index, args.file_owner, args.file_group, 1, args.access_mode, 0,
                                curr_time, curr_time, curr_time);
         if (add_filename_to_table(&filename_table, args.filename, node_index) == -1) {
             status = -1;
@@ -274,6 +274,69 @@ int service_stat(struct service_req_t *req) {
         free(msg);
         data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
+
+    return 0;
+}
+
+int service_link(struct service_req_t *req) {
+    syslog(LOG_INFO, "Handling LINK operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_link() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct link_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        char filename[256];
+        char linkname[256];
+    } args;
+
+    unsigned copy_off = 0;
+    args.file_owner = *(uid_t *)(req->data + copy_off);
+    copy_off += sizeof(uid_t);
+    args.file_group = *(gid_t *)(req->data + copy_off);
+    copy_off += sizeof(gid_t);
+    strcpy(args.filename, req->data + copy_off);
+    copy_off += strlen(args.filename) + 1;
+    strcpy(args.linkname, req->data + copy_off);
+
+    uid_t file_owner = 0;
+    gid_t file_group = 0;
+    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+        syslog(LOG_ERR, "service_link() - Can't find file owner and group");
+        return -1;
+    }
+
+    if (file_owner != args.file_owner || file_group != args.file_group) {
+        syslog(LOG_ERR, "service_link() - File owner or group doesn't match");
+        return -2;
+    }
+
+    if (create_hard_link(inode_table, args.filename, args.linkname)) {
+        syslog(LOG_ERR, "service_link() - Can't create hard link");
+        return -3;
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    msg->status = SUCCESS;
+    msg->multipart = false;
+    msg->data_size = 0;
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
+        syslog(LOG_ERR, "service_link() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
 
     return 0;
 }

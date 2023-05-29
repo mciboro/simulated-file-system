@@ -41,6 +41,9 @@ int open_inode_table(struct inode_t **head) {
         node->owner_group = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
+        node->ref_count = atoi(token);
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
         node->mode = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
@@ -87,13 +90,14 @@ int open_inode_table(struct inode_t **head) {
     return 0;
 }
 
-int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
 
     struct inode_t *node = malloc(sizeof(struct inode_t));
 
     node->owner = owner;
     node->owner_group = owner_group;
+    node->ref_count = ref_count;
     node->mode = mode;
     node->stat.st_size = st_size;
     node->stat.st_atim = st_atim;
@@ -184,9 +188,8 @@ int close_inode_table(struct inode_t *head) {
     fseek(inode_file, 0, SEEK_SET);
 
     while (node) {
-        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->mode,
+        fprintf(inode_file, "%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->ref_count, node->mode,
                 node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec);
-
         for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
             fprintf(inode_file, "%d,", node->data_blocks[i]);
         }
@@ -212,6 +215,32 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     while (node_iter) {
         if (node_iter->index == node_index) {
             node_iter->mode = mode;
+            return 0;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return -1;
+}
+
+int create_hard_link(struct inode_t *head, const char *name, const char *new_name) {
+    unsigned node_index = 0;
+    // check if file with name exists
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return -1;
+    }
+    // check if file with new_name exists
+    if (get_inode_index_for_filename(filename_table, new_name, &node_index) != -1) {
+        syslog(LOG_ERR, "There is already a file with name: %s", new_name);
+        return -1;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            add_filename_to_table(&filename_table, new_name, node_iter->index);
+            node_iter->ref_count++;
             return 0;
         }
         node_iter = node_iter->next;

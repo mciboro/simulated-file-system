@@ -105,6 +105,9 @@ void *operate(void *worker_args) {
         case RENAME:
             service_rename(req);
             break;
+        case LINK:
+            service_link(req);
+            break;
         // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");
