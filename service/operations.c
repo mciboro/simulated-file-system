@@ -80,7 +80,7 @@ int service_create(struct service_req_t *req) {
         data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
-    return 0;
+    return status;
 }
 
 int service_rename(struct service_req_t *req) {
@@ -134,7 +134,7 @@ int service_rename(struct service_req_t *req) {
 
     free(msg);
 
-    return 0;
+    return status;
 }
 
 int service_chmode(struct service_req_t *req) {
@@ -192,7 +192,7 @@ int service_chmode(struct service_req_t *req) {
 
     free(msg);
 
-    return 0;
+    return status;
 }
 
 int service_stat(struct service_req_t *req) {
@@ -267,7 +267,7 @@ int service_stat(struct service_req_t *req) {
         data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
 
-    return 0;
+    return status;
 }
 
 int service_link(struct service_req_t *req) {
@@ -326,5 +326,5 @@ int service_link(struct service_req_t *req) {
 
     free(msg);
 
-    return 0;
+    return status;
 }

@@ -279,7 +279,7 @@ int libfs_chmode(char *const name, long mode) {
 
     free(resp);
 
-    return 0;
+    return status;
 }
 
 int libfs_stat(const char *path, struct stat_t *buf) {
