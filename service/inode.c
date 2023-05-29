@@ -121,14 +121,14 @@ int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_gr
     }
 
     *index = node->index;
-    return 0;
+    return SUCCESS;
 }
 
 int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = head;
@@ -141,14 +141,14 @@ int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owne
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = head;
@@ -160,7 +160,7 @@ int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int close_inode_table(struct inode_t *head) {
@@ -228,12 +228,12 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
     // check if file with name exists
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
     // check if file with new_name exists
     if (get_inode_index_for_filename(filename_table, new_name, &node_index) != -1) {
         syslog(LOG_ERR, "There is already a file with name: %s", new_name);
-        return -1;
+        return FILENAME_TAKEN;
     }
 
     struct inode_t *node_iter = head;
@@ -241,12 +241,12 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
         if (node_iter->index == node_index) {
             add_filename_to_table(&filename_table, new_name, node_iter->index);
             node_iter->ref_count++;
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int remove_inode(struct inode_t **head, const char *name) {

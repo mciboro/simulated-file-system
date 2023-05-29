@@ -166,25 +166,20 @@ int service_chmode(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
-    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    int status = 0;
+    if (status = get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_chmode() - Can't find file owner and group");
-        return -1;
-    }
-
-    if (file_owner != args.file_owner || file_group != args.file_group) {
+    } else if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_chmode() - File owner or group doesn't match");
-        return -2;
-    }
-
-    if (chmod_inode(inode_table, args.filename, args.access_mode)) {
+        status = FAILURE;
+    } else if (status = chmod_inode(inode_table, args.filename, args.access_mode)) {
         syslog(LOG_ERR, "service_chmode() - Can't change access mode of file");
-        return -3;
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t));
     memset(msg, 0, sizeof(struct response_t));
     msg->seq = req->seq;
-    msg->status = SUCCESS;
+    msg->status = status;
     msg->multipart = false;
     msg->data_size = 0;
     msg->data_offset = 0;
@@ -226,14 +221,15 @@ int service_stat(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    int status = 0;
     if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_stat() - Can't find file owner and group");
-        return -1;
+        status = FAILURE;
     }
 
     if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_stat() - File owner or group doesn't match");
-        exit(EXIT_FAILURE);
+        status = FILE_NOT_FOUND;
     }
 
     unsigned data_size = 0, data_to_copy = 0;
@@ -255,11 +251,7 @@ int service_stat(struct service_req_t *req) {
         struct response_t *msg = malloc(sizeof(struct response_t) + part_data_size);
         memset(msg, 0, sizeof(struct response_t) + part_data_size);
         msg->seq = req->seq;
-        if (data_size > 0) {
-            msg->status = SUCCESS;
-        } else {
-            msg->status = FAILURE;
-        }
+        msg->status = status;
         msg->multipart = num_of_parts == 1 ? 0 : num_of_parts;
         msg->data_size = data_size;
         msg->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
@@ -267,7 +259,7 @@ int service_stat(struct service_req_t *req) {
         memcpy(msg->data, copy_buf + msg->data_offset, msg->part_size);
 
         if (msgsnd(msgid, msg, sizeof(*msg) + msg->part_size - sizeof(long), 0) == -1) {
-            syslog(LOG_ERR, "service_create() - Failed to send message to queue");
+            syslog(LOG_ERR, "service_stat() - Failed to send message to queue");
             exit(EXIT_FAILURE);
         }
 
@@ -307,25 +299,21 @@ int service_link(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    int status = 0;
     if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_link() - Can't find file owner and group");
-        return -1;
-    }
-
-    if (file_owner != args.file_owner || file_group != args.file_group) {
+        status = -1;
+    } else if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_link() - File owner or group doesn't match");
-        return -2;
-    }
-
-    if (create_hard_link(inode_table, args.filename, args.linkname)) {
+        status = -2;
+    } else if ((status = create_hard_link(inode_table, args.filename, args.linkname)) != 0) {
         syslog(LOG_ERR, "service_link() - Can't create hard link");
-        return -3;
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t));
     memset(msg, 0, sizeof(struct response_t));
     msg->seq = req->seq;
-    msg->status = SUCCESS;
+    msg->status = status;
     msg->multipart = false;
     msg->data_size = 0;
     msg->data_offset = 0;

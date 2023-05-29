@@ -271,6 +271,8 @@ int libfs_chmode(char *const name, long mode) {
 
     if (status == SUCCESS) {
         fprintf(stderr, "File %s mode changed successfully.\n", name);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "File %s not found.\n", name);
     } else {
         fprintf(stderr, "File %s mode wasn't changed!\n", name);
     }
@@ -381,6 +383,8 @@ int libfs_stat(const char *path, struct stat_t *buf) {
         struct stat_t *stat = (struct stat_t *)resp_buf;
         fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n", path,
                 stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "File %s not found!\n", path);
     } else {
         fprintf(stderr, "Unable to get file stat for file %s!\n", path);
     }
@@ -489,8 +493,13 @@ int libfs_link(const char *oldpath, const char *newpath)
 
     if (status == SUCCESS) {
         fprintf(stderr, "Link %s -> %s created!\n", oldpath, newpath);
+    } else if (status == FILENAME_TAKEN)
+    {
+        fprintf(stderr, "Link %s -> %s failed! Target already exists!\n", oldpath, newpath);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "Link %s -> %s failed! File %s not found!\n", oldpath, newpath, oldpath);
     } else {
-        fprintf(stderr, "Unable to create link %s -> %s!\n", oldpath, newpath);
+        fprintf(stderr, "Link %s -> %s failed!\n", oldpath, newpath);
     }
 
     return status;
