@@ -75,5 +75,3 @@ int remove_filename_from_table(struct filename_inode_t **head, const char *name,
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index);
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname);
 int check_if_filename_taken(struct filename_inode_t *head, const char *name);
-
-// int unlink_inode(struct inode_t *head, char *name);

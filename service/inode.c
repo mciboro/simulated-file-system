@@ -271,6 +271,7 @@ int remove_hard_link(struct inode_t *head, const char *name) {
         }
         node_iter = node_iter->next;
     }
+
     return FAILURE;
 }
 
@@ -687,15 +688,3 @@ int check_if_filename_taken(struct filename_inode_t *head, const char *name) {
 
     return false;
 }
-
-// int unlink_inode(struct inode_t *head, char *name) {
-//     struct inode_t *node_iter = head; 
-//     while (node_iter) {
-//         if (strcmp(node_iter->filename, name) == 0) {
-//             memset(node_iter->filename, 0, MAX_FILENAME_LEN);
-//             return 0;
-//         }
-//         node_iter = node_iter->next;
-//     }
-//     return -1;
-// }

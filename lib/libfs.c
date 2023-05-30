@@ -587,68 +587,6 @@ int libfs_unlink(char *const name) {
     return status;
 }
 
-// int libfs_unlink(char *const name) {
-//     int request_queue = 0, response_queue = 0;
-//     unsigned copy_offset = 0;
-//     struct request_t *unlink_req = malloc(sizeof(struct request_t) + strlen(name) + 1);
-//     memset(unlink_req, 0, sizeof(struct request_t) + strlen(name) + 1);
-
-//     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
-//     if (request_queue == -1) {
-//         fprintf(stderr, "libfs_create() - Failed to open message queue\n");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     uid_t uid = getuid();
-//     gid_t gid = getgid();
-
-//     unlink_req->type = UNLINK;
-//     unlink_req->seq = get_seq();
-//     unlink_req->multipart = 0;
-//     unlink_req->data_size = strlen(name) + 1;
-//     unlink_req->part_size = unlink_req->data_size;
-//     unlink_req->data_offset = 0;
-
-//     strcpy(unlink_req->data + copy_offset, name);
-//     copy_offset += strlen(name) + 1;
-
-//     if (msgsnd(request_queue, unlink_req, sizeof(struct request_t) + unlink_req->part_size - sizeof(long), 0) == -1) {
-//         fprintf(stderr, "libfs_create() - Failed to send message to queue\n");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
-
-//     if (response_queue == -1) {
-//         syslog(LOG_ERR, "Error in msgget()");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     struct response_t *unlink_resp = malloc(sizeof(struct response_t));
-//     memset(unlink_resp, 0, sizeof(struct response_t));
-
-//     int msg_len = 0, status = 0;
-//     msgrcv(response_queue, unlink_resp, sizeof(struct response_t) - sizeof(long), unlink_req->seq, 0);
-//     msg_len = sizeof(*unlink_resp) + unlink_resp->part_size;
-//     status = unlink_resp->status;
-
-//     if (msg_len <= 0) {
-//         syslog(LOG_ERR, "Error in msgrcv() - msg size: %d", msg_len);
-//         exit(EXIT_FAILURE);
-//     }
-
-//     if (status == SUCCESS) {
-//         fprintf(stderr, "File %s unlinked successfully.\n", name);
-//     } else {
-//         fprintf(stderr, "File with given name doesn't exist!\n");
-//     }
-
-//     free(unlink_req);
-//     free(unlink_resp);
-
-//     return status;
-// }
-
 // fd_type libfs_open(char *const name, const int flags) {
 //     int request_queue = 0, response_queue = 0;
 //     unsigned copy_offset = 0;
