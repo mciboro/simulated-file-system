@@ -23,3 +23,6 @@ int service_chmode(struct service_req_t *req);
 int service_stat(struct service_req_t *req);
 int service_rename(struct service_req_t *req);
 int service_link(struct service_req_t *req);
+
+int service_unlink(struct service_req_t *req);
+// int service_open(struct service_req_t *req);

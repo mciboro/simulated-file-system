@@ -249,6 +249,31 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
     return FAILURE;
 }
 
+int remove_hard_link(struct inode_t *head, const char *name) {
+    unsigned node_index = 0;
+    // check if file with name exists
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            if (node_iter->ref_count == 1) {
+                remove_inode(&filename_table, name);
+            }
+            else {
+                remove_filename_from_table(&filename_table, name, node_iter->index);
+                node_iter->ref_count--;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+    return FAILURE;
+}
+
 int remove_inode(struct inode_t **head, const char *name) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
@@ -593,6 +618,34 @@ int add_filename_to_table(struct filename_inode_t **head, const char *name, unsi
     return SUCCESS;
 }
 
+int remove_filename_from_table(struct filename_inode_t **head, const char *name, unsigned node_index) {
+    struct filename_inode_t *node_iter = *head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            if (node_iter->next == NULL) {
+                struct filename_inode_t *second_last = node_iter->prev;
+                node_iter->prev = NULL;
+                second_last->next = NULL;
+            }
+            else if (node_iter->prev == NULL) {
+                struct filename_inode_t *second = node_iter->next;
+                node_iter->next = NULL;
+                second->prev = NULL;
+            }
+            else {
+                struct filename_inode_t *prev = node_iter->prev;
+                struct filename_inode_t *next = node_iter->next;
+                prev->next = next;
+                next->prev = prev;
+                node_iter->next = NULL;
+                node_iter->prev = NULL;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+}
+
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index) {
     struct filename_inode_t *node_iter = head;
     while (node_iter) {
@@ -634,3 +687,15 @@ int check_if_filename_taken(struct filename_inode_t *head, const char *name) {
 
     return false;
 }
+
+// int unlink_inode(struct inode_t *head, char *name) {
+//     struct inode_t *node_iter = head; 
+//     while (node_iter) {
+//         if (strcmp(node_iter->filename, name) == 0) {
+//             memset(node_iter->filename, 0, MAX_FILENAME_LEN);
+//             return 0;
+//         }
+//         node_iter = node_iter->next;
+//     }
+//     return -1;
+// }

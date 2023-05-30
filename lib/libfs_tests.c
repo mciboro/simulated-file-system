@@ -16,5 +16,9 @@ int main() {
     libfs_stat("sample_name.t222xt", &buf);
 
     libfs_link("sample_name.t220xt", "sample_name.t225xt");
+
+    // libfs_unlink("sample_name.t221xt");
+    // libfs_open("sample_name.t222xt", 0);
+
     return 0;
 }
