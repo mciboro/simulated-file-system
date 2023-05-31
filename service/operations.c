@@ -628,3 +628,107 @@ int service_read(struct service_req_t *req) {
     syslog(LOG_INFO, "service_read() - Sent all parts");
     return status;
 }
+
+int service_seek(struct service_req_t *req) {
+    syslog(LOG_INFO, "Handling SEEK operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_seek() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct seek_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        fd_type fd;
+        unsigned offset;
+    } args;
+
+    unsigned copy_off = 0;
+    args.file_owner = *(uid_t *)(req->data + copy_off);
+    copy_off += sizeof(uid_t);
+    args.file_group = *(gid_t *)(req->data + copy_off);
+    copy_off += sizeof(gid_t);
+    args.fd = *(fd_type *)(req->data + copy_off);
+    copy_off += sizeof(fd_type);
+    args.offset = *(unsigned *)(req->data + copy_off);
+
+    syslog(LOG_INFO, "service_seek() - file_owner: %d, file_group: %d, fd: %d, offset: %d", args.file_owner, args.file_group, args.fd, args.offset);
+
+    int status = 0;
+    if ((status = seek_inode_fd(inode_table, args.fd, args.offset)) != 0) {
+        syslog(LOG_ERR, "service_seek() - Can't seek file");
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    msg->status = status;
+    msg->multipart = false;
+    msg->data_size = 0;
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
+        syslog(LOG_ERR, "service_seek() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return status;
+}
+
+int service_unlink(struct service_req_t *req)
+{
+    syslog(LOG_INFO, "Handling UNLINK operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_unlink() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct unlink_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        char name[256];
+    } args;
+
+    unsigned copy_off = 0;
+    args.file_owner = *(uid_t *)(req->data + copy_off);
+    copy_off += sizeof(uid_t);
+    args.file_group = *(gid_t *)(req->data + copy_off);
+    copy_off += sizeof(gid_t);
+    strcpy(args.name, req->data + copy_off);
+
+    syslog(LOG_INFO, "service_unlink() - file_owner: %d, file_group: %d, name: %s", args.file_owner, args.file_group, args.name);
+
+    int status = 0;
+    if ((status = unlink_inode(inode_table, args.name)) != 0) {
+        syslog(LOG_ERR, "service_unlink() - Can't unlink file");
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    msg->status = status;
+    msg->multipart = false;
+    msg->data_size = 0;
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
+        syslog(LOG_ERR, "service_unlink() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return status;
+}

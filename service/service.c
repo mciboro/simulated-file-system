@@ -123,6 +123,12 @@ void *operate(void *worker_args) {
         case READ:
             service_read(req);
             break;
+        case SEEK:
+            service_seek(req);
+            break;
+        case UNLINK:
+            service_unlink(req);
+            break;
         // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");

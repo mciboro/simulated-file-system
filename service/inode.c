@@ -228,6 +228,40 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     return FAILURE;
 }
 
+int unlink_inode(struct inode_t *head, const char *name) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            node_iter->ref_count--;
+            if (node_iter->ref_count == 0) {
+                if (node_iter->prev) {
+                    node_iter->prev->next = node_iter->next;
+                } else {
+                    head = node_iter->next;
+                }
+                if (node_iter->next) {
+                    node_iter->next->prev = node_iter->prev;
+                }
+                free(node_iter);
+            }
+            if (remove_filename_from_table(filename_table, name) == -1) {
+                syslog(LOG_ERR, "unlink_inode() - Cannot remove inode from filename table");
+                return FAILURE;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return FAILURE;
+}
+
 int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsigned size) {
     unsigned current_block = *offset / DATA_BLOCK_ALLOC_SIZE;
     unsigned new_offset = *offset + size;
@@ -407,6 +441,39 @@ int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned 
             return SUCCESS;
         }
         node_iter = node_iter->next;
+    }
+
+    return FAILURE;
+}
+
+int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset)
+{
+    struct descriptor_t *fd_iter = descriptor_table;
+    while (fd_iter) {
+        if (fd_iter->desc == fd) {
+            unsigned node_index = fd_iter->node_index;
+            struct inode_t *node_iter = head;
+            struct inode_t *node = NULL;
+            while (node_iter) {
+                if (node_iter->index == node_index) {
+                    node = node_iter;
+                    break;
+                }
+                node_iter = node_iter->next;
+            }
+            if (node == NULL) {
+                syslog(LOG_ERR, "seek_inode_fd() - Node not found");
+                return FAILURE;
+            }
+            if (offset > node->stat.st_size) {
+                syslog(LOG_ERR, "seek_inode_fd() - Offset is too big");
+                return FAILURE;
+            }
+            fd_iter->offset = offset;
+            syslog(LOG_INFO, "seek_inode_fd() - New offset: %d", fd_iter->offset);
+            return SUCCESS;
+        }
+        fd_iter = fd_iter->next;
     }
 
     return FAILURE;
@@ -930,6 +997,25 @@ int rename_file(struct filename_inode_t *head, const char *oldname, const char *
         if (strcmp(node_iter->filename, oldname) == 0) {
             memset(node_iter->filename, 0, MAX_FILENAME_LEN);
             strcpy(node_iter->filename, newname);
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return FAILURE;
+}
+
+int remove_filename_from_table(struct filename_inode_t *head, const char *name) {
+    struct filename_inode_t *node_iter = head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            if (node_iter->prev) {
+                node_iter->prev->next = node_iter->next;
+            }
+            if (node_iter->next) {
+                node_iter->next->prev = node_iter->prev;
+            }
+            free(node_iter);
             return SUCCESS;
         }
         node_iter = node_iter->next;

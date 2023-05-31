@@ -968,7 +968,7 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
         free(create_req);
         data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
-
+    fprintf(stderr, "libfs_read() - Sent %d parts\n", num_of_parts);
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
 
     if (response_queue == -1) {
@@ -991,6 +991,7 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
 
     memcpy(resp_buf, resp->data, copied_data);
     
+    fprintf(stderr, "Read data: ");
 
     while (copied_data < resp_data_size) {
         struct response_t *further_resp = malloc(MAX_MSG_SIZE);
@@ -1000,6 +1001,8 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
             syslog(LOG_ERR, "Error in msgrcv()");
             exit(EXIT_FAILURE);
         }
+
+        fprintf(stderr, "Received part %d\n", further_resp->part_size);
 
         if (!further_resp->multipart) {
             syslog(LOG_ERR, "Error in msgrcv() - Msg should be multipart");
@@ -1027,5 +1030,154 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
     }
 
     free(resp);
+    return status;
+}
+
+int libfs_seek(const fd_type fd, const unsigned offset)
+{
+    int request_queue = 0, response_queue = 0;
+
+    request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
+    if (request_queue == -1) {
+        fprintf(stderr, "libfs_seek() - Failed to open message queue\n");
+        exit(EXIT_FAILURE);
+    }
+
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    unsigned seq = get_seq();
+
+    unsigned data_size = sizeof(uid) + sizeof(gid) + sizeof(fd) + sizeof(offset);
+
+    char copy_buf[data_size];
+    unsigned copy_offset = 0;
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
+    copy_offset += sizeof(uid);
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
+    copy_offset += sizeof(gid);
+    memcpy(copy_buf + copy_offset, &fd, sizeof(fd));
+    copy_offset += sizeof(fd);
+    memcpy(copy_buf + copy_offset, &offset, sizeof(offset));
+
+    struct request_t *create_req = malloc(sizeof(struct request_t) + data_size);
+    memset(create_req, 0, sizeof(struct request_t) + data_size);
+
+    create_req->type = SEEK;
+    create_req->seq = seq;
+    create_req->multipart = 0;
+    create_req->data_size = data_size;
+    create_req->part_size = data_size;
+    create_req->data_offset = 0;
+    memcpy(create_req->data, copy_buf, create_req->part_size);
+
+    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+        -1) {
+        fprintf(stderr, "libfs_seek() - Failed to send message to queue\n");
+        exit(EXIT_FAILURE);
+    }
+
+    free(create_req);
+
+    response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+
+    if (response_queue == -1) {
+        syslog(LOG_ERR, "Error in msgget()");
+        exit(EXIT_FAILURE);
+    }
+
+    struct response_t *resp = malloc(MAX_MSG_SIZE);
+    memset(resp, 0, MAX_MSG_SIZE);
+
+    if (msgrcv(response_queue, resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
+        syslog(LOG_ERR, "Error in msgrcv()");
+        exit(EXIT_FAILURE);
+    }
+
+    int status = resp->status;
+
+    if (status == SUCCESS) {
+        fprintf(stderr, "File descriptor %d seek success!\n", fd);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "File not found!\n");
+    } else {
+        fprintf(stderr, "Unable to seek!\n");
+    }
+
+    free(resp);
+    return status;
+}
+
+int libfs_unlink(char *const name)
+{
+    int request_queue = 0, response_queue = 0;
+
+    request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
+    if (request_queue == -1) {
+        fprintf(stderr, "libfs_unlink() - Failed to open message queue\n");
+        exit(EXIT_FAILURE);
+    }
+
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    unsigned seq = get_seq();
+
+    unsigned data_size = sizeof(uid) + sizeof(gid) + strlen(name) + 1;
+
+    char copy_buf[data_size];
+    unsigned copy_offset = 0;
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
+    copy_offset += sizeof(uid);
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
+    copy_offset += sizeof(gid);
+    memcpy(copy_buf + copy_offset, name, strlen(name) + 1);
+
+    struct request_t *create_req = malloc(sizeof(struct request_t) + data_size);
+    memset(create_req, 0, sizeof(struct request_t) + data_size);
+
+    create_req->type = UNLINK;
+    create_req->seq = seq;
+    create_req->multipart = 0;
+    create_req->data_size = data_size;
+    create_req->part_size = data_size;
+    create_req->data_offset = 0;
+    memcpy(create_req->data, copy_buf, create_req->part_size);
+
+    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+        -1) {
+        fprintf(stderr, "libfs_unlink() - Failed to send message to queue\n");
+        exit(EXIT_FAILURE);
+    }
+
+    free(create_req);
+
+    response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+
+    if (response_queue == -1) {
+        syslog(LOG_ERR, "Error in msgget()");
+        exit(EXIT_FAILURE);
+    }
+
+    struct response_t *resp = malloc(MAX_MSG_SIZE);
+    memset(resp, 0, MAX_MSG_SIZE);
+
+    if (msgrcv(response_queue, resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
+        syslog(LOG_ERR, "Error in msgrcv()");
+        exit(EXIT_FAILURE);
+    }
+
+    int status = resp->status;
+
+    if (status == SUCCESS) {
+        fprintf(stderr, "File %s unlinked!\n", name);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "File not found!\n");
+    } else {
+        fprintf(stderr, "Unable to unlink!\n");
+    }
+
+    free(resp);
+
     return status;
 }

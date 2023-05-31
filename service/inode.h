@@ -54,12 +54,14 @@ int add_inode(struct inode_t **head, fd_type *index, unsigned type, uid_t owner,
 int rename_inode(struct inode_t *head, char *oldname, char *newname);
 int remove_inode(struct inode_t **head, const char *name);
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode);
+int unlink_inode(struct inode_t *head, const char *name);
 // Overwrite inode data with buf
 int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsigned size);
 int write_inode_fd(struct inode_t *head, fd_type fd, const char *buf, unsigned size);
 int read_inode(struct inode_t *inode, char *buf, unsigned *offset, unsigned size);
 int read_inode_fd(struct inode_t *head, fd_type fd, char *buf, unsigned size);
 int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned mode);
+int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset);
 int close_inode(const fd_type index);
 int create_hard_link(struct inode_t *head, const char *oldname, const char *newname);
 int create_soft_link(struct inode_t *head, const char *oldname, const char *newname, uid_t owner, gid_t owner_group, long mode);
@@ -82,4 +84,5 @@ int close_filename_table(struct filename_inode_t *head);
 int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index);
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index);
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname);
+int remove_filename_from_table(struct filename_inode_t *head, const char *name);
 int check_if_filename_taken(struct filename_inode_t *head, const char *name);
