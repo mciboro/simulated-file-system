@@ -56,7 +56,11 @@ int remove_inode(struct inode_t **head, const char *name);
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode);
 // Overwrite inode data with buf
 int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsigned size);
+int write_inode_fd(struct inode_t *head, fd_type fd, const char *buf, unsigned size);
 int read_inode(struct inode_t *inode, char *buf, unsigned *offset, unsigned size);
+int read_inode_fd(struct inode_t *head, fd_type fd, char *buf, unsigned size);
+int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned mode);
+int close_inode(const fd_type index);
 int create_hard_link(struct inode_t *head, const char *oldname, const char *newname);
 int create_soft_link(struct inode_t *head, const char *oldname, const char *newname, uid_t owner, gid_t owner_group, long mode);
 int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group);
@@ -68,7 +72,7 @@ int remove_descriptor(struct descriptor_t **head, const fd_type desc);
 
 int open_data_block_table(struct data_block_t **head);
 int close_data_block_table(struct data_block_t *head);
-int occupy_block_table_slot(unsigned inode_index, const char *buf);
+int occupy_block_table_slot(unsigned inode_index, const char *buf, unsigned *slot_address);
 int update_block_table_slot(unsigned block_index, const char *buf, unsigned offset, unsigned size);
 int read_block_table_slot(unsigned block_index, char *buf, unsigned offset, unsigned size);
 int free_block_table_slot(unsigned block_index);

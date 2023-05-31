@@ -111,6 +111,18 @@ void *operate(void *worker_args) {
         case SYMLINK:
             service_symlink(req);
             break;
+        case OPEN:
+            service_open(req);
+            break;
+        case CLOSE:
+            service_close(req);
+            break;
+        case WRITE:
+            service_write(req);
+            break;
+        case READ:
+            service_read(req);
+            break;
         // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");
