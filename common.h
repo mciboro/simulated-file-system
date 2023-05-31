@@ -24,6 +24,7 @@ extern int libfs_errno;
 typedef unsigned int fd_type;
 
 enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
+enum FileType { F_REGULAR, F_SYMLINK };
 enum Status { SUCCESS = 0, FAILURE = -1, FILENAME_TAKEN = -2, FILE_NOT_FOUND = -3 };
 
 struct request_t {

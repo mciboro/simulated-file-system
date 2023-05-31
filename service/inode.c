@@ -35,6 +35,9 @@ int open_inode_table(struct inode_t **head) {
         node->index = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
+        node->type = atoi(token);
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
         node->owner = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
@@ -90,7 +93,7 @@ int open_inode_table(struct inode_t **head) {
     return SUCCESS;
 }
 
-int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, unsigned type, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
 
     struct inode_t *node = malloc(sizeof(struct inode_t));
@@ -188,7 +191,7 @@ int close_inode_table(struct inode_t *head) {
     fseek(inode_file, 0, SEEK_SET);
 
     while (node) {
-        fprintf(inode_file, "%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->ref_count, node->mode,
+        fprintf(inode_file, "%d,%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->type, node->owner, node->owner_group, node->ref_count, node->mode,
                 node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec);
         for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
             fprintf(inode_file, "%d,", node->data_blocks[i]);
@@ -223,6 +226,65 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     return FAILURE;
 }
 
+int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsigned size)
+{
+    unsigned current_block = *offset / DATA_BLOCK_ALLOC_SIZE;
+    unsigned total_blocks = size / DATA_BLOCK_ALLOC_SIZE + (size % DATA_BLOCK_ALLOC_SIZE != 0);
+
+    if (*offset + size > DATA_BLOCK_ALLOC_SIZE * FILE_MAX_BLOCKS) {
+        syslog(LOG_ERR, "write_inode() - File is too big");
+        return FAILURE;
+    }
+
+    unsigned current_offset = 0;
+    for (unsigned i = current_block; i < FILE_MAX_BLOCKS; i++) {
+        if (inode->data_blocks[i] == 0) {
+            unsigned size_to_write = size > DATA_BLOCK_ALLOC_SIZE ? DATA_BLOCK_ALLOC_SIZE : size;
+            if (occupy_block_table_slot(inode->data_blocks[i], buf + current_offset) != SUCCESS) {
+                syslog(LOG_ERR, "write_inode() - Failed to allocate block");
+                return FAILURE;
+            }
+            current_offset += size_to_write;
+        } else {
+            unsigned size_to_write = size > DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE) ? DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE) : size;
+            if (update_block_table_slot(inode->data_blocks[i], buf + *offset, (*offset % DATA_BLOCK_ALLOC_SIZE), size_to_write) != SUCCESS) {
+                syslog(LOG_ERR, "write_inode() - Failed to update block");
+                return FAILURE;
+            }
+            current_offset += size_to_write;
+        }
+    }
+    inode->stat.st_size = *offset + size;
+    *offset += size;
+    return SUCCESS;
+}
+
+int read_inode(struct inode_t *inode, char *buf, unsigned *offset, unsigned size)
+{
+    unsigned current_block = *offset / DATA_BLOCK_ALLOC_SIZE;
+
+    if (*offset + size > DATA_BLOCK_ALLOC_SIZE * FILE_MAX_BLOCKS) {
+        syslog(LOG_ERR, "read_inode() - File is too big");
+        return FAILURE;
+    }
+
+    long bytes_to_read = size;
+    unsigned current_offset = 0;
+    while (bytes_to_read > 0) {
+        unsigned size_to_read = bytes_to_read > DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE) ? DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE) : bytes_to_read;
+        size_to_read = size_to_read > DATA_BLOCK_ALLOC_SIZE ? DATA_BLOCK_ALLOC_SIZE : size_to_read;
+        if (read_block_table_slot(inode->data_blocks[current_block], buf + current_offset, (*offset % DATA_BLOCK_ALLOC_SIZE), size_to_read) != SUCCESS) {
+            syslog(LOG_ERR, "read_inode() - Failed to read block");
+            return FAILURE;
+        }
+        bytes_to_read -= size_to_read;
+        current_offset += size_to_read;
+        current_block++;
+    }
+    inode->stat.st_size = *offset + size;
+    return SUCCESS;
+}
+
 int create_hard_link(struct inode_t *head, const char *name, const char *new_name) {
     unsigned node_index = 0;
     // check if file with name exists
@@ -246,6 +308,46 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
         node_iter = node_iter->next;
     }
 
+    return FAILURE;
+}
+
+int create_soft_link(struct inode_t *head, const char *name, const char *new_name, uid_t owner, gid_t owner_group, long mode) {
+    unsigned node_index = 0;
+    // check if file with name exists
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+    // check if file with new_name exists
+    if (get_inode_index_for_filename(filename_table, new_name, &node_index) != -1) {
+        syslog(LOG_ERR, "There is already a file with name: %s", new_name);
+        return FILENAME_TAKEN;
+    }
+
+    struct timespec curr_time;
+    clock_gettime(CLOCK_REALTIME, &curr_time);
+    size_t size = strlen(name);
+    if (add_inode(&inode_table, &node_index, F_SYMLINK, owner, owner_group, 0, mode, 0, curr_time, curr_time, curr_time) != SUCCESS) {
+        syslog(LOG_ERR, "create_soft_link() - Failed to add inode");
+        return FAILURE;
+    }
+    if (add_filename_to_table(&filename_table, new_name, node_index) != SUCCESS) {
+        syslog(LOG_ERR, "create_soft_link() - Failed to add filename table entry");
+        return FAILURE;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            unsigned offset = 0;
+            if (write_inode(node_iter, name, &offset, size) != SUCCESS) {
+                syslog(LOG_ERR, "create_soft_link() - Failed to write to inode");
+                return FAILURE;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
     return FAILURE;
 }
 
@@ -441,7 +543,7 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf) {
 
             if (pw == NULL) {
                 syslog(LOG_ERR, "Cannot retrieve info about service's owner");
-                exit(EXIT_FAILURE);
+                return FAILURE;
             }
 
             char *libfs_dir = strcat(pw->pw_dir, "/libfs");
@@ -450,7 +552,7 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf) {
 
             if (!data_block_file) {
                 syslog(LOG_ERR, "occupy_block_table_slot() - Node file descriptor corrupted");
-                exit(EXIT_FAILURE);
+                return FAILURE;
             }
 
             fseek(data_block_file, DATA_BLOCK_ALLOC_SIZE * i, SEEK_SET);
@@ -458,19 +560,79 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf) {
             fclose(data_block_file);
             return SUCCESS;
         }
-
-        return FAILURE;;
     }
+    return FAILURE;;
 }
 
-int free_block_table_slot(unsigned inode_index) {
-    if (inode_index > NUM_OF_DATA_BLOCKS) {
+int update_block_table_slot(unsigned block_index, const char *buf, unsigned offset, unsigned size) {
+    if (block_index > NUM_OF_DATA_BLOCKS) {
         syslog(LOG_ERR, "Node index corrupted!");
-        return FAILURE;;
+        return FAILURE;
     }
 
-    data_block_table[inode_index].allocated = false;
-    data_block_table[inode_index].inode_index = -1;
+    FILE *data_block_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+
+    data_block_file = fopen(strcat(libfs_dir, "/data"), "a+");
+
+    if (!data_block_file) {
+        syslog(LOG_ERR, "update_block_table_slot() - Node file descriptor corrupted");
+        exit(EXIT_FAILURE);
+    }
+
+    fseek(data_block_file, DATA_BLOCK_ALLOC_SIZE * block_index + offset, SEEK_SET);
+    fwrite(buf, size, 1, data_block_file);
+    fclose(data_block_file);
+    return SUCCESS;
+}
+
+int read_block_table_slot(unsigned block_index, char *buf, unsigned offset, unsigned size)
+{
+    if (block_index > NUM_OF_DATA_BLOCKS) {
+        syslog(LOG_ERR, "Node index corrupted!");
+        return FAILURE;
+    }
+
+    FILE *data_block_file = NULL;
+    uid_t uid = getuid();
+    struct passwd *pw = getpwuid(uid);
+
+    if (pw == NULL) {
+        syslog(LOG_ERR, "Cannot retrieve info about service's owner");
+        exit(EXIT_FAILURE);
+    }
+
+    char *libfs_dir = strcat(pw->pw_dir, "/libfs");
+    
+    data_block_file = fopen(strcat(libfs_dir, "/data"), "a+");
+
+    if (!data_block_file) {
+        syslog(LOG_ERR, "read_block_table_slot() - Node file descriptor corrupted");
+        exit(EXIT_FAILURE);
+    }
+
+    fseek(data_block_file, DATA_BLOCK_ALLOC_SIZE * block_index + offset, SEEK_SET);
+    fread(buf, size, 1, data_block_file);
+    fclose(data_block_file);
+    return SUCCESS;
+}
+
+int free_block_table_slot(unsigned block_index) {
+    if (block_index > NUM_OF_DATA_BLOCKS) {
+        syslog(LOG_ERR, "Node index corrupted!");
+        return FAILURE;
+    }
+
+    data_block_table[block_index].allocated = false;
+    data_block_table[block_index].inode_index = -1;
 }
 
 int open_filename_table(struct filename_inode_t **head) {
@@ -526,6 +688,8 @@ int open_filename_table(struct filename_inode_t **head) {
     return SUCCESS;
 }
 
+
+
 int close_filename_table(struct filename_inode_t *head) {
 
     FILE *filename_file = NULL;
@@ -563,6 +727,7 @@ int close_filename_table(struct filename_inode_t *head) {
 }
 
 int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index) {
+    syslog(LOG_INFO, "Adding filename %s to table", name);
     struct filename_inode_t *node_iter = *head;
     while (node_iter) {
         if (strcmp(node_iter->filename, name) == 0) {

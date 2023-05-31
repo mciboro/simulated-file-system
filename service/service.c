@@ -108,6 +108,9 @@ void *operate(void *worker_args) {
         case LINK:
             service_link(req);
             break;
+        case SYMLINK:
+            service_symlink(req);
+            break;
         // TO DO
         default:
             syslog(LOG_ERR, "Unrecognized type!\n");

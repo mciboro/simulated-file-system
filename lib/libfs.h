@@ -27,4 +27,4 @@ int libfs_seek(const fd_type fd, const long int offset);
 int libfs_close(const fd_type fd);
 int libfs_stat(const char *path, struct stat_t *buf);
 int libfs_link(const char *oldpath, const char *newpath);
-int libfs_symlink(const char *path1, const char *path2);
+int libfs_symlink(const char *path1, const char *path2, long mode);

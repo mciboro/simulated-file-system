@@ -504,3 +504,116 @@ int libfs_link(const char *oldpath, const char *newpath)
 
     return status;
 }
+
+int libfs_symlink(const char *path1, const char *path2, long mode)
+{
+    int request_queue = 0, response_queue = 0;
+    unsigned copy_offset = 0;
+
+    request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
+    if (request_queue == -1) {
+        fprintf(stderr, "libfs_symlink() - Failed to open message queue\n");
+        exit(EXIT_FAILURE);
+    }
+
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    unsigned seq = get_seq();
+
+    unsigned data_to_copy = 0, data_size = 0;
+    data_size = data_to_copy = sizeof(uid) + sizeof(gid) + sizeof(long) + strlen(path1) + 1 + strlen(path2) + 1;
+
+    char copy_buf[data_size];
+    memcpy(copy_buf + copy_offset, &uid, sizeof(uid));
+    copy_offset += sizeof(uid);
+    memcpy(copy_buf + copy_offset, &gid, sizeof(gid));
+    copy_offset += sizeof(gid);
+    memcpy(copy_buf + copy_offset, &mode, sizeof(mode));
+    copy_offset += sizeof(mode);
+    strcpy(copy_buf + copy_offset, path1);
+    copy_offset += strlen(path1) + 1;
+    strcpy(copy_buf + copy_offset, path2);
+
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    if (num_of_parts == 0) {
+        num_of_parts = 1;
+    }
+    for (int i = 0; i < num_of_parts; i++) {
+        unsigned part_data_size = data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+        struct request_t *create_req = malloc(sizeof(struct request_t) + part_data_size);
+        memset(create_req, 0, sizeof(struct request_t) + part_data_size);
+
+        create_req->type = SYMLINK;
+        create_req->seq = seq;
+        create_req->multipart = num_of_parts == 1 ? 0 : num_of_parts;
+        create_req->data_size = data_size;
+        create_req->part_size = part_data_size;
+        create_req->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
+        memcpy(create_req->data, copy_buf + create_req->data_offset, create_req->part_size);
+
+        if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
+            -1) {
+            fprintf(stderr, "libfs_symlink() - Failed to send message to queue\n");
+            exit(EXIT_FAILURE);
+        }
+
+        free(create_req);
+        data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
+    }
+
+    response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+
+    if (response_queue == -1) {
+        syslog(LOG_ERR, "Error in msgget()");
+        exit(EXIT_FAILURE);
+    }
+
+    struct response_t *resp = malloc(MAX_MSG_SIZE);
+    memset(resp, 0, MAX_MSG_SIZE);
+
+    if (msgrcv(response_queue, resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
+        syslog(LOG_ERR, "Error in msgrcv()");
+        exit(EXIT_FAILURE);
+    }
+
+    int status = resp->status;
+    unsigned resp_data_size = resp->data_size;
+    unsigned copied_data = resp->part_size;
+    char resp_buf[resp_data_size];
+
+    memcpy(resp_buf, resp->data, copied_data);
+    free(resp);
+
+    while (copied_data < resp_data_size) {
+        struct response_t *further_resp = malloc(MAX_MSG_SIZE);
+        memset(further_resp, 0, MAX_MSG_SIZE);
+
+        if (msgrcv(response_queue, further_resp, MAX_MSG_SIZE, seq, 0) == -1) {
+            syslog(LOG_ERR, "Error in msgrcv()");
+            exit(EXIT_FAILURE);
+        }
+
+        if (!further_resp->multipart) {
+            syslog(LOG_ERR, "Error in msgrcv() - Msg should be multipart");
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy(resp_buf + further_resp->data_offset, further_resp->data, further_resp->part_size);
+        copied_data += further_resp->part_size;
+
+        status = further_resp->status;
+        free(further_resp);
+    }
+
+    if (status == SUCCESS) {
+        fprintf(stderr, "Symlink %s -> %s created!\n", path1, path2);
+    } else if (status == FILENAME_TAKEN)
+    {
+        fprintf(stderr, "Symlink %s -> %s failed! Target already exists!\n", path1, path2);
+    } else if (status == FILE_NOT_FOUND) {
+        fprintf(stderr, "Symlink %s -> %s failed! File %s not found!\n", path1, path2, path1);
+    } else {
+        fprintf(stderr, "Symlink %s -> %s failed!\n", path1, path2);
+    }
+}

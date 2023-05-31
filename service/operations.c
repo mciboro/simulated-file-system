@@ -33,7 +33,7 @@ int service_create(struct service_req_t *req) {
 
     int status = 0;
     if (check_if_filename_taken(filename_table, args.filename) == 0) {
-        status = add_inode(&inode_table, &node_index, args.file_owner, args.file_group, 1, args.access_mode, 0,
+        status = add_inode(&inode_table, &node_index, F_REGULAR, args.file_owner, args.file_group, 1, args.access_mode, 0,
                                curr_time, curr_time, curr_time);
         if (add_filename_to_table(&filename_table, args.filename, node_index) == -1) {
             status = -1;
@@ -321,6 +321,70 @@ int service_link(struct service_req_t *req) {
 
     if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
         syslog(LOG_ERR, "service_link() - Failed to send message to queue");
+        exit(EXIT_FAILURE);
+    }
+
+    free(msg);
+
+    return status;
+}
+
+int service_symlink(struct service_req_t *req) {
+    syslog(LOG_INFO, "Handling SYMLINK operation.");
+
+    int msgid = 0;
+    msgid = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
+    if (msgid == -1) {
+        syslog(LOG_ERR, "service_symlink() - Failed to open message queue");
+        exit(EXIT_FAILURE);
+    }
+
+    // Code of operation on file
+    struct symlink_args_t {
+        uid_t file_owner;
+        gid_t file_group;
+        long mode;
+        char filename[256];
+        char linkname[256];
+    } args;
+
+    unsigned copy_off = 0;
+    args.file_owner = *(uid_t *)(req->data + copy_off);
+    copy_off += sizeof(uid_t);
+    args.file_group = *(gid_t *)(req->data + copy_off);
+    copy_off += sizeof(gid_t);
+    args.mode = *(long *)(req->data + copy_off);
+    copy_off += sizeof(long);
+    strcpy(args.filename, req->data + copy_off);
+    copy_off += strlen(args.filename) + 1;
+    strcpy(args.linkname, req->data + copy_off);
+
+    syslog(LOG_INFO, "service_symlink() - file_owner: %d, file_group: %d, mode: %ld, filename: %s, linkname: %s", args.file_owner, args.file_group, args.mode, args.filename, args.linkname );
+
+    uid_t file_owner = 0;
+    gid_t file_group = 0;
+    int status = 0;
+    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+        syslog(LOG_ERR, "service_symlink() - Can't find file owner and group");
+        status = -1;
+    } else if (file_owner != args.file_owner || file_group != args.file_group) {
+        syslog(LOG_ERR, "service_symlink() - File owner or group doesn't match");
+        status = -2;
+    } else if ((status = create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group, args.mode)) != 0) {
+        syslog(LOG_ERR, "service_symlink() - Can't create symbolic link");
+    }
+
+    struct response_t *msg = malloc(sizeof(struct response_t));
+    memset(msg, 0, sizeof(struct response_t));
+    msg->seq = req->seq;
+    msg->status = status;
+    msg->multipart = false;
+    msg->data_size = 0;
+    msg->data_offset = 0;
+    msg->part_size = msg->data_size;
+
+    if (msgsnd(msgid, msg, sizeof(*msg) + msg->data_size - sizeof(long), 0) == -1) {
+        syslog(LOG_ERR, "service_symlink() - Failed to send message to queue");
         exit(EXIT_FAILURE);
     }
 
