@@ -261,7 +261,7 @@ int remove_hard_link(struct inode_t *head, const char *name) {
     while (node_iter) {
         if (node_iter->index == node_index) {
             if (node_iter->ref_count == 1) {
-                remove_inode(&filename_table, name);
+                remove_inode(&inode_table, name);
             }
             else {
                 remove_filename_from_table(&filename_table, name, node_iter->index);

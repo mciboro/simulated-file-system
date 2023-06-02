@@ -6,6 +6,7 @@
 
 #include "service/operations.h"
 #include "service/req_buffer.h"
+#include "lib/libfs.h"
 
 
 // there are many different ASSERT macro's (see ctest.h)

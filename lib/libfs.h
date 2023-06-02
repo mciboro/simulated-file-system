@@ -12,9 +12,7 @@
 
 extern unsigned seq_counter;
 
-long get_seq() {
-    return (getpid() << sizeof(long) / 2) + seq_counter++;
-}
+long get_seq();
 
 fd_type libfs_create(char *const name, long mode);
 int libfs_chmode(char *const name, long mode);
