@@ -21,7 +21,7 @@ int open_inode_table(struct inode_t **head) {
 
     if (!inode_file) {
         syslog(LOG_ERR, "open_inode_table() - No file node");
-        return 0;
+        return SUCCESS;
     }
 
     char line[4096] = {0}, *token;
@@ -39,6 +39,9 @@ int open_inode_table(struct inode_t **head) {
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
         node->owner_group = atoi(token);
+        token = strtok(line + copy_off, ",");
+        copy_off += strlen(token) + 1;
+        node->ref_count = atoi(token);
         token = strtok(line + copy_off, ",");
         copy_off += strlen(token) + 1;
         node->mode = atoi(token);
@@ -84,16 +87,17 @@ int open_inode_table(struct inode_t **head) {
     }
 
     fclose(inode_file);
-    return 0;
+    return SUCCESS;
 }
 
-int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim) {
 
     struct inode_t *node = malloc(sizeof(struct inode_t));
 
     node->owner = owner;
     node->owner_group = owner_group;
+    node->ref_count = ref_count;
     node->mode = mode;
     node->stat.st_size = st_size;
     node->stat.st_atim = st_atim;
@@ -117,14 +121,14 @@ int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_gr
     }
 
     *index = node->index;
-    return 0;
+    return SUCCESS;
 }
 
 int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = head;
@@ -132,31 +136,31 @@ int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owne
         if (node_iter->index == node_index) {
             *owner = node_iter->owner;
             *group = node_iter->owner_group;
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = head;
     while (node_iter) {
         if (node_iter->index == node_index) {
             memcpy(stat, &node_iter->stat, sizeof(struct stat_t));
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int close_inode_table(struct inode_t *head) {
@@ -184,9 +188,8 @@ int close_inode_table(struct inode_t *head) {
     fseek(inode_file, 0, SEEK_SET);
 
     while (node) {
-        fprintf(inode_file, "%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->mode,
+        fprintf(inode_file, "%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,", node->index, node->owner, node->owner_group, node->ref_count, node->mode,
                 node->stat.st_size, node->stat.st_atim.tv_sec, node->stat.st_mtim.tv_sec, node->stat.st_ctim.tv_sec);
-
         for (int i = 0; i < FILE_MAX_BLOCKS - 1; i++) {
             fprintf(inode_file, "%d,", node->data_blocks[i]);
         }
@@ -198,33 +201,85 @@ int close_inode_table(struct inode_t *head) {
     }
 
     fclose(inode_file);
-    return 0;
+    return SUCCESS;
 }
 
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     unsigned node_index = 0;
-    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == FAILURE) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = head;
     while (node_iter) {
         if (node_iter->index == node_index) {
             node_iter->mode = mode;
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
+}
+
+int create_hard_link(struct inode_t *head, const char *name, const char *new_name) {
+    unsigned node_index = 0;
+    // check if file with name exists
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+    // check if file with new_name exists
+    if (check_if_filename_taken(filename_table, new_name) == true) {
+        syslog(LOG_ERR, "There is already a file with name: %s", new_name);
+        return FILENAME_TAKEN;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            add_filename_to_table(&filename_table, new_name, node_iter->index);
+            node_iter->ref_count++;
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return FAILURE;
+}
+
+int remove_hard_link(struct inode_t *head, const char *name) {
+    unsigned node_index = 0;
+    // check if file with name exists
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+
+    struct inode_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            if (node_iter->ref_count == 1) {
+                remove_inode(&inode_table, name);
+            }
+            else {
+                remove_filename_from_table(&filename_table, name, node_iter->index);
+                node_iter->ref_count--;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return FAILURE;
 }
 
 int remove_inode(struct inode_t **head, const char *name) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
-        return -1;
+        return FILE_NOT_FOUND;
     }
 
     struct inode_t *node_iter = *head;
@@ -247,12 +302,12 @@ int remove_inode(struct inode_t **head, const char *name) {
                 }
             }
             free(node_iter);
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset) {
@@ -277,7 +332,7 @@ int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsig
     }
 
     return node->desc;
-    return 0;
+    return SUCCESS;
 }
 
 int close_file_descriptors_table(struct descriptor_t *head) {
@@ -289,7 +344,7 @@ int close_file_descriptors_table(struct descriptor_t *head) {
         free(prev);
     }
 
-    return 0;
+    return SUCCESS;
 }
 
 int remove_descriptor(struct descriptor_t **head, const fd_type desc) {
@@ -313,12 +368,12 @@ int remove_descriptor(struct descriptor_t **head, const fd_type desc) {
                 }
             }
             free(desc_iter);
-            return 0;
+            return SUCCESS;
         }
         desc_iter = desc_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int open_data_block_table(struct data_block_t **head) {
@@ -341,7 +396,7 @@ int open_data_block_table(struct data_block_t **head) {
 
     if (!data_block_file) {
         syslog(LOG_ERR, "open_data_block_table() - No file node");
-        return 0;
+        return SUCCESS;
     }
 
     char line[4096] = {0}, *token;
@@ -363,12 +418,12 @@ int open_data_block_table(struct data_block_t **head) {
         if (index >= NUM_OF_DATA_BLOCKS) {
             fclose(data_block_file);
             syslog(LOG_ERR, "Too much data blocks taken. Run out of memory!");
-            return -1;
+            return FAILURE;;
         }
     }
 
     fclose(data_block_file);
-    return 0;
+    return SUCCESS;
 }
 
 int close_data_block_table(struct data_block_t *head) {
@@ -397,7 +452,7 @@ int close_data_block_table(struct data_block_t *head) {
 
     fclose(data_block_file);
     free(data_block_table);
-    return 0;
+    return SUCCESS;
 }
 
 int occupy_block_table_slot(unsigned inode_index, const char *buf) {
@@ -427,17 +482,17 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf) {
             fseek(data_block_file, DATA_BLOCK_ALLOC_SIZE * i, SEEK_SET);
             fwrite(buf, DATA_BLOCK_ALLOC_SIZE, 1, data_block_file);
             fclose(data_block_file);
-            return 0;
+            return SUCCESS;
         }
 
-        return -1;
+        return FAILURE;;
     }
 }
 
 int free_block_table_slot(unsigned inode_index) {
     if (inode_index > NUM_OF_DATA_BLOCKS) {
         syslog(LOG_ERR, "Node index corrupted!");
-        return -1;
+        return FAILURE;;
     }
 
     data_block_table[inode_index].allocated = false;
@@ -460,7 +515,7 @@ int open_filename_table(struct filename_inode_t **head) {
 
     if (!filename_file) {
         syslog(LOG_ERR, "open_filename_table() - No file node");
-        return 0;
+        return SUCCESS;
     }
 
     char line[4096] = {0}, *token;
@@ -494,7 +549,7 @@ int open_filename_table(struct filename_inode_t **head) {
     }
 
     fclose(filename_file);
-    return 0;
+    return SUCCESS;
 }
 
 int close_filename_table(struct filename_inode_t *head) {
@@ -530,7 +585,7 @@ int close_filename_table(struct filename_inode_t *head) {
     }
 
     fclose(filename_file);
-    return 0;
+    return SUCCESS;
 }
 
 int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index) {
@@ -538,7 +593,7 @@ int add_filename_to_table(struct filename_inode_t **head, const char *name, unsi
     while (node_iter) {
         if (strcmp(node_iter->filename, name) == 0) {
             syslog(LOG_INFO, "File already exists!");
-            return -1;
+            return FILENAME_TAKEN;
         }
         node_iter = node_iter->next;
     }
@@ -561,7 +616,35 @@ int add_filename_to_table(struct filename_inode_t **head, const char *name, unsi
         node->prev = curr;
     }
 
-    return 0;
+    return SUCCESS;
+}
+
+int remove_filename_from_table(struct filename_inode_t **head, const char *name, unsigned node_index) {
+    struct filename_inode_t *node_iter = *head;
+    while (node_iter) {
+        if (strcmp(node_iter->filename, name) == 0) {
+            if (node_iter->next == NULL) {
+                struct filename_inode_t *second_last = node_iter->prev;
+                node_iter->prev = NULL;
+                second_last->next = NULL;
+            }
+            else if (node_iter->prev == NULL) {
+                struct filename_inode_t *second = node_iter->next;
+                node_iter->next = NULL;
+                second->prev = NULL;
+            }
+            else {
+                struct filename_inode_t *prev = node_iter->prev;
+                struct filename_inode_t *next = node_iter->next;
+                prev->next = next;
+                next->prev = prev;
+                node_iter->next = NULL;
+                node_iter->prev = NULL;
+            }
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
 }
 
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index) {
@@ -569,29 +652,29 @@ int get_inode_index_for_filename(struct filename_inode_t *head, const char *name
     while (node_iter) {
         if (strcmp(node_iter->filename, name) == 0) {
             *node_index = node_iter->node_index;
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;
+    return FAILURE;
 }
 
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname) {
     struct filename_inode_t *node_iter = head;
     if (check_if_filename_taken(head, newname)) {
-        return -2;
+        return FILENAME_TAKEN;
     } 
     while (node_iter) {
         if (strcmp(node_iter->filename, oldname) == 0) {
             memset(node_iter->filename, 0, MAX_FILENAME_LEN);
             strcpy(node_iter->filename, newname);
-            return 0;
+            return SUCCESS;
         }
         node_iter = node_iter->next;
     }
 
-    return -1;    
+    return FAILURE;    
 }
 
 int check_if_filename_taken(struct filename_inode_t *head, const char *name) {

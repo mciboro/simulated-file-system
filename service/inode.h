@@ -31,6 +31,7 @@ struct inode_t {
     long mode;
     uid_t owner;
     gid_t owner_group;
+    unsigned ref_count;
     unsigned data_blocks[FILE_MAX_BLOCKS];
 };
 
@@ -48,11 +49,13 @@ struct data_block_t {
 
 int open_inode_table(struct inode_t **head);
 int close_inode_table(struct inode_t *head);
-int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, long mode, off_t st_size,
+int add_inode(struct inode_t **head, fd_type *index, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
               struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim);
 int rename_inode(struct inode_t *head, char *oldname, char *newname);
 int remove_inode(struct inode_t **head, const char *name);
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode);
+int create_hard_link(struct inode_t *head, const char *oldname, const char *newname);
+int remove_hard_link(struct inode_t *head, const char *name);
 int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group);
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat);
 
@@ -68,6 +71,7 @@ int free_block_table_slot(unsigned inode_index);
 int open_filename_table(struct filename_inode_t **head);
 int close_filename_table(struct filename_inode_t *head);
 int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index);
+int remove_filename_from_table(struct filename_inode_t **head, const char *name, unsigned node_index);
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index);
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname);
 int check_if_filename_taken(struct filename_inode_t *head, const char *name);

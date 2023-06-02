@@ -6,9 +6,8 @@
 
 #include "service/operations.h"
 #include "service/req_buffer.h"
+#include "lib/libfs.h"
 
-
-//CTEST(suite1, test1) {}
 
 // there are many different ASSERT macro's (see ctest.h)
 CTEST(suite1, test2) {
@@ -17,10 +16,6 @@ CTEST(suite1, test2) {
 
 CTEST(suite2, test1) {
     ASSERT_STR("foo", "foo");
-}
-
-CTEST(suite3, test3) {
-    ASSERT_EQUAL(1,2);
 }
 
 // req_buffer.c tests
@@ -106,6 +101,53 @@ CTEST(suite12, test12) {
     //ASSERT_EQUAL(fd_type*, typeid(lib));
 }*/
 
+CTEST(suite13, test13) {
+    fd_type lib = libfs_create("sample_name.t228xt", 0777);
+    int res = libfs_rename("sample_name.t228xt", "new_name_hehe.exehe");
+    // ASSERT_STR((*lib).name, "new_name.exehe");
+    //ASSERT_STR(lib->name, "new_name.exehe");   
+    ASSERT_EQUAL(res, 2);
+}
+
+CTEST(suite14, test14) {
+    fd_type lib = libfs_create("sample_name.t228xt", 0777);
+    fd_type lib2 = libfs_create("sample_name_two.t228xt", 0777);
+
+    int res = libfs_rename("sample_name.t228xt", "sample_name_two.t228xt");
+    //ASSERT_STR((*lib).name, "sample_name.t228xt");   
+    ASSERT_EQUAL(res, 2);
+}
+
+CTEST(suite15, test15) {
+    fd_type lib = libfs_create("sample_name.t228xt", 0777);
+    int res = libfs_rename("sample_name.t228xt", "sample_name.t228xt");
+    ASSERT_NOT_EQUAL(res, 0);
+    ASSERT_EQUAL(res, 2);
+}
+
+CTEST(suite16, test16) {
+    fd_type lib = libfs_create("sample_name.t228xt", 0777);
+    int res = libfs_rename("sample_name.t228xt", "new_name.exehe");
+    // ASSERT_STR((*lib).name, "new_name.exehe");
+    //ASSERT_STR(lib->name, "new_name.exehe");   
+    ASSERT_NOT_EQUAL(res, 0);
+}
+
+CTEST(suite17, test17) {
+    fd_type lib = libfs_create("sample_name.t228xt", 0777);
+    fd_type lib2 = libfs_create("sample_name_two.t228xt", 0664);
+    int res = libfs_chmode("sample_name.t228xt", 0664);
+    int res2 = libfs_chmode("sample_name_two.t228xt", 0444);
+
+    //ASSERT_EQUAL((*lib).mode, 0664);   
+    //ASSERT_EQUAL((*lib2).mode, 0444);   
+    //ASSERT_NOT_EQUAL((*lib).mode, 0777);   
+    //ASSERT_NOT_EQUAL((*lib2).mode, 0664);
+
+    ASSERT_EQUAL(res, 0);
+    ASSERT_EQUAL(res2, 0);
+}
+
 int main(int argc, const char *argv[])
 {
     int result = ctest_main(argc, argv);
@@ -113,4 +155,5 @@ int main(int argc, const char *argv[])
     printf("\nTest done!\n");
     return result;
 }
+
 
