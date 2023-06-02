@@ -612,6 +612,7 @@ int libfs_symlink(const char *path1, const char *path2, long mode) {
     } else {
         fprintf(stderr, "Symlink %s -> %s failed!\n", path1, path2);
     }
+    return status;
 }
 
 fd_type libfs_open(char *const name, const int flags) {
