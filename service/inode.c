@@ -206,7 +206,7 @@ int close_inode_table(struct inode_t *head) {
 
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     unsigned node_index = 0;
-    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == FAILURE) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
         return FILE_NOT_FOUND;
     }
@@ -231,7 +231,7 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
         return FILE_NOT_FOUND;
     }
     // check if file with new_name exists
-    if (get_inode_index_for_filename(filename_table, new_name, &node_index) != -1) {
+    if (check_if_filename_taken(filename_table, new_name) == true) {
         syslog(LOG_ERR, "There is already a file with name: %s", new_name);
         return FILENAME_TAKEN;
     }
@@ -657,7 +657,7 @@ int get_inode_index_for_filename(struct filename_inode_t *head, const char *name
         node_iter = node_iter->next;
     }
 
-    return FAILURE;;
+    return FAILURE;
 }
 
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname) {
