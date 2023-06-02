@@ -221,7 +221,7 @@ int service_stat(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
-    int status = 0;
+    enum Status status = SUCCESS;
     if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_stat() - Can't find file owner and group");
         status = FAILURE;
