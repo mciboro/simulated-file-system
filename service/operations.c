@@ -560,6 +560,7 @@ int service_write(struct service_req_t *req) {
     }
 
     free(msg);
+    free(args.data);
 
     return status;
 }

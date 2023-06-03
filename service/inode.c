@@ -294,15 +294,19 @@ int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsign
             unsigned size_to_write = size > DATA_BLOCK_ALLOC_SIZE ? DATA_BLOCK_ALLOC_SIZE : size;
             unsigned slot_address = 0;
             char *buffer = malloc(DATA_BLOCK_ALLOC_SIZE);
+            memset(buffer, 0, DATA_BLOCK_ALLOC_SIZE);
             memcpy(buffer, buf + current_offset, size_to_write);
             if (occupy_block_table_slot(inode->index, buffer, &slot_address) != SUCCESS) {
                 syslog(LOG_ERR, "write_inode() - Failed to allocate block");
+                free(buffer);
                 return FAILURE;
             }
             syslog(LOG_INFO, "write_inode() - New block address: %d", slot_address);
             inode->data_blocks[i] = slot_address;
             current_offset += size_to_write;
             size -= size_to_write;
+
+            free(buffer);
         }
     }
     syslog(LOG_INFO, "write_inode() - New offset: %d", new_offset);
@@ -665,7 +669,6 @@ int open_data_block_table(struct data_block_t **head) {
             fclose(data_block_file);
             syslog(LOG_ERR, "Too much data blocks taken. Run out of memory!");
             return FAILURE;
-            ;
         }
     }
 
@@ -703,43 +706,37 @@ int close_data_block_table(struct data_block_t *head) {
 }
 
 int occupy_block_table_slot(unsigned inode_index, const char *buf, unsigned *slot_address) {
-    for (int i = 1; i < NUM_OF_DATA_BLOCKS; i++) {
+    for (int i = 0; i < NUM_OF_DATA_BLOCKS; i++) {
         if (!data_block_table[i].allocated) {
             data_block_table[i].allocated = true;
             data_block_table[i].inode_index = inode_index;
 
-            FILE *data_block_file = NULL;
+            FILE *data_file = NULL;
             uid_t uid = getuid();
             struct passwd *pw = getpwuid(uid);
 
             if (pw == NULL) {
                 syslog(LOG_ERR, "Cannot retrieve info about service's owner");
-                return FAILURE;
+                exit(EXIT_FAILURE);
             }
 
             char *libfs_dir = strcat(pw->pw_dir, "/libfs");
-            char *data_path = strcat(libfs_dir, "/data");
 
-            data_block_file = fopen(data_path, "r+");
-            char *file_buffer = malloc(DATA_BLOCK_ALLOC_SIZE * NUM_OF_DATA_BLOCKS);
-            memset(file_buffer, 0, DATA_BLOCK_ALLOC_SIZE * NUM_OF_DATA_BLOCKS);
-            if (data_block_file) {
-                fread(file_buffer, DATA_BLOCK_ALLOC_SIZE, NUM_OF_DATA_BLOCKS, data_block_file);
-                fclose(data_block_file);
-            }
-            memcpy(file_buffer + (i * DATA_BLOCK_ALLOC_SIZE), buf, DATA_BLOCK_ALLOC_SIZE);
-            data_block_file = fopen(data_path, "w+");
-            if (!data_block_file) {
+            data_file = fopen(strcat(libfs_dir, "/data"), "a+");
+
+            if (!data_file) {
                 syslog(LOG_ERR, "occupy_block_table_slot() - Node file descriptor corrupted");
-                return FAILURE;
+                exit(EXIT_FAILURE);
             }
-            fwrite(file_buffer, DATA_BLOCK_ALLOC_SIZE, NUM_OF_DATA_BLOCKS, data_block_file);
-            fclose(data_block_file);
-            *slot_address = i;
+
+            fseek(data_file, DATA_BLOCK_ALLOC_SIZE * i, SEEK_SET);
+            fwrite(buf, DATA_BLOCK_ALLOC_SIZE, 1, data_file);
+            fclose(data_file);
             return SUCCESS;
         }
+
+        return FAILURE;;
     }
-    return FAILURE;
 }
 
 int update_block_table_slot(unsigned block_index, const char *buf, unsigned offset, unsigned size) {

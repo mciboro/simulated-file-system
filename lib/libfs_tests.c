@@ -66,6 +66,7 @@ int main() {
     for (int i = 0; i < 5; ++i) {
         printf("%c", buf3[i]);
     }
+    free(buf3);
     // libfs_unlink("sample_name.t221xt");
     // libfs_open("sample_name.t222xt", 0);
 
