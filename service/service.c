@@ -108,11 +108,26 @@ void *operate(void *worker_args) {
         case LINK:
             service_link(req);
             break;
-        case UNLINK:
-            service_unlink(req);
+        case SYMLINK:
+            service_symlink(req);
             break;
         case OPEN:
-            // service_open(req);
+            service_open(req);
+            break;
+        case CLOSE:
+            service_close(req);
+            break;
+        case WRITE:
+            service_write(req);
+            break;
+        case READ:
+            service_read(req);
+            break;
+        case SEEK:
+            service_seek(req);
+            break;
+        case UNLINK:
+            service_unlink(req);
             break;
         // TO DO
         default:

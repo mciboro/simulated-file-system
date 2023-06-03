@@ -15,7 +15,7 @@ extern int libfs_errno;
 #define MAX_FILENAME_LEN 256
 
 #define MAX_MSG_SIZE 4096
-#define MAX_MSG_DATA_SIZE MAX_MSG_SIZE - sizeof(struct request_t)
+#define MAX_MSG_DATA_SIZE (MAX_MSG_SIZE - sizeof(struct request_t))
 
 #define DATA_BLOCK_ALLOC_SIZE 4096
 #define NUM_OF_DATA_BLOCKS 1000
@@ -24,6 +24,8 @@ extern int libfs_errno;
 typedef unsigned int fd_type;
 
 enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
+enum FileType { F_REGULAR, F_SYMLINK };
+enum OpenMode { READ_ONLY = 0, WRITE_ONLY = 1};
 enum Status { SUCCESS, FAILURE, FILENAME_TAKEN, FILE_NOT_FOUND };
 
 struct request_t {

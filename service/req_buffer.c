@@ -118,7 +118,7 @@ int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t **data
         syslog(LOG_ERR, "Data object cannot be void!");
         return -2;
     }
-
+    
     sem_wait(&rbuf->full);
     pthread_mutex_lock(&rbuf->lock);
     *data = &rbuf->reqs[rbuf->rd_idx];
