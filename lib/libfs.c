@@ -996,8 +996,6 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
 
     memcpy(resp_buf, resp->data, copied_data);
     
-    fprintf(stderr, "Read data: ");
-
     while (copied_data < resp_data_size) {
         struct response_t *further_resp = malloc(MAX_MSG_SIZE);
         memset(further_resp, 0, MAX_MSG_SIZE);
@@ -1024,7 +1022,7 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
     for (int i = 0; i < resp_data_size; i++) {
         fprintf(stderr, "%c", resp_buf[i]);
     }
-    fprintf(stderr, "<-\n");
+    fprintf(stderr, "\n");
     if (status == SUCCESS) {
         memcpy(buf, &resp_buf, resp->data_size);
         fprintf(stderr, "File descriptor %d read success!\n", fd);

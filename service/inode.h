@@ -75,7 +75,7 @@ int remove_descriptor(struct descriptor_t **head, const fd_type desc);
 
 int open_data_block_table(struct data_block_t **head);
 int close_data_block_table(struct data_block_t *head);
-int occupy_block_table_slot(unsigned inode_index, const char *buf, unsigned *slot_address);
+int occupy_block_table_slot(unsigned inode_index, const char *buf, unsigned buf_size, unsigned *slot_address);
 int update_block_table_slot(unsigned block_index, const char *buf, unsigned offset, unsigned size);
 int read_block_table_slot(unsigned block_index, char *buf, unsigned offset, unsigned size);
 int free_block_table_slot(unsigned block_index);
