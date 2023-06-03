@@ -4,8 +4,9 @@
 #define CTEST_SEGFAULT
 #include "ctest.h"
 
-#include "../service/operations.h"
-#include "../service/req_buffer.h"
+#include "service/operations.h"
+#include "service/req_buffer.h"
+#include "lib/libfs.h"
 
 
 // req_buffer.c tests
@@ -247,7 +248,7 @@ CTEST(suite23, test23) {
 // seek and write should fail, read should success
 CTEST(suite24, test24) {
     struct stat_t buf;
-    libfs_create("sample_name7.t225xt", &buf);
+    libfs_create("sample_name7.t225xt", 0777);
     char *buf4 = malloc(20);
     fd_type fd5 = libfs_open("sample_name7.t225xt", READ_ONLY);
     memcpy(buf4, "Hello, world!", 13);

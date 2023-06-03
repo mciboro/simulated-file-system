@@ -221,7 +221,7 @@ int service_stat(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
-    int status = 0;
+    enum Status status = SUCCESS;
     if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_stat() - Can't find file owner and group");
         status = FAILURE;
@@ -299,13 +299,13 @@ int service_link(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
-    int status = 0;
+    enum Status status = SUCCESS;
     if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
         syslog(LOG_ERR, "service_link() - Can't find file owner and group");
-        status = -1;
+        status = FAILURE;
     } else if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_link() - File owner or group doesn't match");
-        status = -2;
+        status = FAILURE;
     } else if ((status = create_hard_link(inode_table, args.filename, args.linkname)) != 0) {
         syslog(LOG_ERR, "service_link() - Can't create hard link");
     }
@@ -436,8 +436,8 @@ int service_open(struct service_req_t *req) {
         syslog(LOG_ERR, "service_open() - Can't open file");
     }
 
-    struct response_t *msg = malloc(sizeof(struct response_t));
-    memset(msg, 0, sizeof(struct response_t));
+    struct response_t *msg = malloc(sizeof(struct response_t) + sizeof(fd_type));
+    memset(msg, 0, sizeof(struct response_t) + sizeof(fd_type));
     msg->seq = req->seq;
     msg->status = status;
     msg->multipart = false;

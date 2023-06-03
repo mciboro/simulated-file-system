@@ -2,6 +2,10 @@
 
 unsigned seq_counter = 0;
 
+long get_seq() {
+    return (getpid() << sizeof(long) / 2) + seq_counter++;
+}
+
 fd_type libfs_create(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;

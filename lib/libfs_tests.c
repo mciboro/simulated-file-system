@@ -7,13 +7,17 @@ int main() {
     libfs_create("sample_name.t222xt", 0222);
     libfs_create("sample_name.t223xt", 0664);
     libfs_unlink("sample_name.t223xt");
-    libfs_stat("sample_name.t223xt", NULL);
+
+    libfs_stat("sample_name.t222xt", &buf);
 
     libfs_create("sample_name.t224xt", 0444);
     libfs_create("sample_name.t224xt", 0777);
 
-    libfs_chmode("sample_name.t220234xt", 0644);
+    libfs_chmode("sample_name.t220xt", 0644);
+    libfs_chmode("sample_name.t220xt222", 0644);
+
     libfs_rename("sample_name.t221xt", "new_nice_name.exehehe");
+    libfs_rename("sample_name.t223xt", "new_nice_name.exehehe");
 
     
     libfs_stat("sample_name.t221xt", &buf);
@@ -62,5 +66,8 @@ int main() {
     for (int i = 0; i < 5; ++i) {
         printf("%c", buf3[i]);
     }
+    // libfs_unlink("sample_name.t221xt");
+    // libfs_open("sample_name.t222xt", 0);
+
     return 0;
 }

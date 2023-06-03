@@ -29,3 +29,4 @@ int service_close(struct service_req_t *req);
 int service_write(struct service_req_t *req);
 int service_read(struct service_req_t *req);
 int service_seek(struct service_req_t *req);
+int service_unlink(struct service_req_t *req);

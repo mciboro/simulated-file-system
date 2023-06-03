@@ -211,7 +211,7 @@ int close_inode_table(struct inode_t *head) {
 
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     unsigned node_index = 0;
-    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == FAILURE) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
         return FILE_NOT_FOUND;
     }
@@ -495,7 +495,7 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
         return FILE_NOT_FOUND;
     }
     // check if file with new_name exists
-    if (get_inode_index_for_filename(filename_table, new_name, &node_index) != -1) {
+    if (check_if_filename_taken(filename_table, new_name) == true) {
         syslog(LOG_ERR, "There is already a file with name: %s", new_name);
         return FILENAME_TAKEN;
     }
@@ -548,40 +548,6 @@ int create_soft_link(struct inode_t *head, const char *name, const char *new_nam
                 syslog(LOG_ERR, "create_soft_link() - Failed to write to inode");
                 return FAILURE;
             }
-            return SUCCESS;
-        }
-        node_iter = node_iter->next;
-    }
-    return FAILURE;
-}
-
-int remove_inode(struct inode_t **head, const char *name) {
-    unsigned node_index = 0;
-    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
-        syslog(LOG_ERR, "There is no file with name: %s", name);
-        return FILE_NOT_FOUND;
-    }
-
-    struct inode_t *node_iter = *head;
-    while (node_iter) {
-        if (node_iter->index == node_index) {
-            if (node_iter->prev) {
-                node_iter->prev->next = node_iter->next;
-            } else {
-                if (node_iter->next) {
-                    node_iter->next->prev = NULL;
-                }
-                *head = node_iter->next;
-            }
-
-            if (node_iter->next) {
-                node_iter->next->prev = node_iter->prev;
-            } else {
-                if (node_iter->prev) {
-                    node_iter->prev->next = NULL;
-                }
-            }
-            free(node_iter);
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -985,7 +951,6 @@ int get_inode_index_for_filename(struct filename_inode_t *head, const char *name
     }
 
     return FAILURE;
-    ;
 }
 
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname) {
@@ -1034,4 +999,39 @@ int check_if_filename_taken(struct filename_inode_t *head, const char *name) {
     }
 
     return false;
+}
+
+int remove_inode(struct inode_t **head, const char *name) {
+    unsigned node_index = 0;
+    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+        syslog(LOG_ERR, "There is no file with name: %s", name);
+        return FILE_NOT_FOUND;
+    }
+
+    struct inode_t *node_iter = *head;
+    while (node_iter) {
+        if (node_iter->index == node_index) {
+            if (node_iter->prev) {
+                node_iter->prev->next = node_iter->next;
+            } else {
+                if (node_iter->next) {
+                    node_iter->next->prev = NULL;
+                }
+                *head = node_iter->next;
+            }
+
+            if (node_iter->next) {
+                node_iter->next->prev = node_iter->prev;
+            } else {
+                if (node_iter->prev) {
+                    node_iter->prev->next = NULL;
+                }
+            }
+            free(node_iter);
+            return SUCCESS;
+        }
+        node_iter = node_iter->next;
+    }
+
+    return FAILURE;
 }

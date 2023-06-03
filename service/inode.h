@@ -65,6 +65,7 @@ int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset);
 int close_inode(const fd_type index);
 int create_hard_link(struct inode_t *head, const char *oldname, const char *newname);
 int create_soft_link(struct inode_t *head, const char *oldname, const char *newname, uid_t owner, gid_t owner_group, long mode);
+int remove_hard_link(struct inode_t *head, const char *name);
 int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group);
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat);
 
@@ -82,7 +83,7 @@ int free_block_table_slot(unsigned block_index);
 int open_filename_table(struct filename_inode_t **head);
 int close_filename_table(struct filename_inode_t *head);
 int add_filename_to_table(struct filename_inode_t **head, const char *name, unsigned node_index);
+int remove_filename_from_table(struct filename_inode_t *head, const char *name);
 int get_inode_index_for_filename(struct filename_inode_t *head, const char *name, unsigned *node_index);
 int rename_file(struct filename_inode_t *head, const char *oldname, const char *newname);
-int remove_filename_from_table(struct filename_inode_t *head, const char *name);
 int check_if_filename_taken(struct filename_inode_t *head, const char *name);
