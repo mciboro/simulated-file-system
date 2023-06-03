@@ -282,8 +282,8 @@ int write_inode(struct inode_t *inode, const char *buf, unsigned *offset, unsign
             unsigned size_to_write = size > DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE)
                                          ? DATA_BLOCK_ALLOC_SIZE - (*offset % DATA_BLOCK_ALLOC_SIZE)
                                          : size;
-            if (update_block_table_slot(inode->data_blocks[i] - 1, buf + current_offset, (*offset % DATA_BLOCK_ALLOC_SIZE),
-                                        size_to_write) != SUCCESS) {
+            if (update_block_table_slot(inode->data_blocks[i] - 1, buf + current_offset,
+                                        (*offset % DATA_BLOCK_ALLOC_SIZE), size_to_write) != SUCCESS) {
                 syslog(LOG_ERR, "write_inode() - Failed to update block");
                 return FAILURE;
             }
@@ -383,8 +383,7 @@ int read_inode(struct inode_t *inode, char *buf, unsigned *offset, unsigned size
     return SUCCESS;
 }
 
-int read_inode_fd(struct inode_t *head, fd_type fd, char *buf, unsigned size)
-{
+int read_inode_fd(struct inode_t *head, fd_type fd, char *buf, unsigned size) {
     struct descriptor_t *fd_iter = descriptor_table;
     while (fd_iter) {
         if (fd_iter->desc == fd) {
@@ -425,22 +424,22 @@ int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned 
     struct inode_t *node_iter = head;
     while (node_iter) {
         if (node_iter->index == node_index) {
-            if (node_iter->type == F_SYMLINK) {
-                char buff[256] = {0};
-                unsigned offset = 0;
-                if (read_inode(node_iter, buff, &offset, node_iter->stat.st_size) != SUCCESS) {
-                    syslog(LOG_ERR, "open_inode() - Failed to read inode");
-                    return FAILURE;
-                }
-                syslog(LOG_INFO, "open_inode() - Symlink: %s", buff);
-                if (get_inode_index_for_filename(filename_table, buff, &node_index) == -1) {
-                    syslog(LOG_ERR, "There is no file with name: %s", buff);
-                    return FILE_NOT_FOUND;
-                }
-                // Iterate from the beginning
-                node_iter = head;
-                continue;
-            }
+            // if (node_iter->type == F_SYMLINK) {
+            //     char buff[node_iter->stat.st_size];
+            //     memset(buff, 0, node_iter->stat.st_size);
+            //     unsigned offset = 0;
+            //     if (read_inode(node_iter, buff, &offset, node_iter->stat.st_size) != SUCCESS) {
+            //         syslog(LOG_ERR, "open_inode() - Failed to read inode");
+            //         return FAILURE;
+            //     }
+            //     if (get_inode_index_for_filename(filename_table, buff, &node_index) == -1) {
+            //         syslog(LOG_ERR, "There is no file with name: %s", buff);
+            //         return FILE_NOT_FOUND;
+            //     }
+            //     // Iterate from the beginning
+            //     node_iter = head;
+            //     continue;
+            // }
             *index = add_opened_descriptor(&descriptor_table, node_index, mode, 0);
             return SUCCESS;
         }
@@ -450,8 +449,7 @@ int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned 
     return FAILURE;
 }
 
-int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset)
-{
+int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset) {
     struct descriptor_t *fd_iter = descriptor_table;
     while (fd_iter) {
         if (fd_iter->desc == fd) {
@@ -562,7 +560,24 @@ int create_soft_link(struct inode_t *head, const char *name, const char *new_nam
         node_iter = node_iter->next;
     }
 
-    // if (!parent_node || !child_node);
+    if (!parent_node || !child_node) {
+        syslog(LOG_ERR, "Corrupted file nodes!");
+        return FAILURE;
+    }
+
+    uint8_t buf[parent_node->stat.st_size];
+    memset(buf, 0, parent_node->stat.st_size);
+    unsigned offset = 0;
+    if (read_inode(parent_node, buf, &offset, parent_node->stat.st_size)) {
+        syslog(LOG_ERR, "create_soft_link() - Failed to read inode");
+        return FAILURE;
+    }
+
+    offset = 0;
+    if (write_inode(child_node, buf, &offset, parent_node->stat.st_size)) {
+        syslog(LOG_ERR, "create_soft_link() - Failed to write inode");
+        return FAILURE;
+    }
     return SUCCESS;
 }
 
@@ -735,8 +750,11 @@ int occupy_block_table_slot(unsigned inode_index, const char *buf, unsigned buf_
                 exit(EXIT_FAILURE);
             }
 
+            uint8_t write_buf[DATA_BLOCK_ALLOC_SIZE] = {0};
+            memcpy(write_buf, buf, buf_size);
+
             fseek(data_file, DATA_BLOCK_ALLOC_SIZE * i, SEEK_SET);
-            fwrite(buf, buf_size, 1, data_file);
+            fwrite(write_buf, DATA_BLOCK_ALLOC_SIZE, 1, data_file);
             fclose(data_file);
             *slot_address = i + 1;
             return SUCCESS;
@@ -763,13 +781,13 @@ int update_block_table_slot(unsigned block_index, const char *buf, unsigned offs
     char *libfs_dir = strcat(pw->pw_dir, "/libfs");
     char *data_path = strcat(libfs_dir, "/data");
 
-    data_file = fopen(data_path, "a+");
+    data_file = fopen(data_path, "r+");
     if (!data_file) {
         syslog(LOG_ERR, "update_block_table_slot() - Node file descriptor corrupted");
         exit(EXIT_FAILURE);
     }
 
-    fseek(data_file, offset, SEEK_SET);
+    fseek(data_file, DATA_BLOCK_ALLOC_SIZE * block_index + offset, SEEK_SET);
     fwrite(buf, size, 1, data_file);
     fclose(data_file);
     return SUCCESS;

@@ -19,17 +19,14 @@ int main() {
     libfs_stat("sample_name.t222xt", &buf);
 
     libfs_link("sample_name.t221xt", "sample_name.t225xt");
-    // libfs_symlink("sample_name.t222xt", "sample_name.t226xt", 0777);
 
     fd_type fd1 = libfs_open("sample_name.t225xt", WRITE_ONLY);
-    // fd_type fd2 = libfs_open("sample_name.t226xt", READ_ONLY);
     char *buf1 = malloc(3000);
     memset(buf1, 'a', 3000);
     memcpy(buf1, "Hello, world!", 13);
     libfs_write(fd1, buf1, 3000);
     libfs_write(fd1, buf1, 3000);
     libfs_close(fd1);
-    // libfs_close(fd2);
 
     char *buf2 = malloc(6000);
     fd_type fd3 = libfs_open("sample_name.t225xt", READ_ONLY);
@@ -50,8 +47,10 @@ int main() {
     free(buf1);
     free(buf2);
 
+    libfs_symlink("sample_name.t225xt", "sample_name.t226xt", 0777);
+
     char *buf3 = malloc(5);
-    fd_type fd4 = libfs_open("sample_name.t225xt", READ_ONLY);
+    fd_type fd4 = libfs_open("sample_name.t226xt", READ_ONLY);
     libfs_seek(fd4, 3);
     libfs_read(fd4, buf3, 5);
     libfs_close(fd4);
