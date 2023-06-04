@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 #define BUFFER_SIZE 256
-#define DEBUG
+// #define DEBUG
 
 volatile sig_atomic_t working = true;
 struct req_buffer_t *server_buf = NULL;
