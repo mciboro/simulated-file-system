@@ -61,8 +61,5 @@ int main() {
     printf("\n");
     free(buf3);
 
-    // libfs_unlink("sample_name.t221xt");
-    // libfs_open("sample_name.t222xt", 0);
-
     return 0;
 }
