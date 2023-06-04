@@ -49,8 +49,8 @@ struct data_block_t {
 
 int open_inode_table(struct inode_t **head);
 int close_inode_table(struct inode_t *head);
-int add_inode(struct inode_t **head, fd_type *index, unsigned type, uid_t owner, gid_t owner_group, unsigned ref_count, long mode, off_t st_size,
-              struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim);
+int add_inode(struct inode_t **head, fd_type *index, unsigned type, uid_t owner, gid_t owner_group, unsigned ref_count,
+              long mode, off_t st_size, struct timespec st_atim, struct timespec st_mtim, struct timespec st_ctim);
 int rename_inode(struct inode_t *head, char *oldname, char *newname);
 int remove_inode(struct inode_t **head, const char *name);
 int chmod_inode(struct inode_t *head, const char *name, unsigned mode);
@@ -64,12 +64,14 @@ int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned 
 int seek_inode_fd(struct inode_t *head, fd_type fd, unsigned offset);
 int close_inode(const fd_type index);
 int create_hard_link(struct inode_t *head, const char *oldname, const char *newname);
-int create_soft_link(struct inode_t *head, const char *oldname, const char *newname, uid_t owner, gid_t owner_group, long mode);
+int create_soft_link(struct inode_t *head, const char *oldname, const char *newname, uid_t owner, gid_t owner_group,
+                     long mode);
 int remove_hard_link(struct inode_t *head, const char *name);
-int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group);
+int get_file_owner_group_permissions(struct inode_t *head, const char *name, uid_t *owner, gid_t *group, long *perms);
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat);
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset);
+int look_for_opened_write(struct descriptor_t *head, unsigned node_index);
 int close_file_descriptors_table(struct descriptor_t *head);
 int remove_descriptor(struct descriptor_t **head, const fd_type desc);
 

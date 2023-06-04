@@ -11,6 +11,7 @@
 #include "common.h"
 
 extern unsigned seq_counter;
+extern int libfs_errno;
 
 long get_seq();
 

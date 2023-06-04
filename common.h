@@ -6,7 +6,6 @@
 #include <syslog.h>
 #include <time.h>
 
-extern int libfs_errno;
 #define IPC_PERMS 0666
 #define IPC_REQUESTS_KEY 1234L
 #define IPC_RESPONSE_KEY 2345L
@@ -26,7 +25,7 @@ typedef unsigned int fd_type;
 enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
 enum FileType { F_REGULAR, F_SYMLINK };
 enum OpenMode { READ_ONLY = 0, WRITE_ONLY = 1};
-enum Status { SUCCESS, FAILURE, FILENAME_TAKEN, FILE_NOT_FOUND };
+enum Status { SUCCESS, FAILURE, FILENAME_TAKEN, FILE_NOT_FOUND, INSUFFICIENT_PERMS, DOUBLE_WRITE };
 
 struct request_t {
     long seq;
