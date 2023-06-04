@@ -69,7 +69,10 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         new_req.seq = msg->seq;
         new_req.req_status = IN_PROGRESS;
         new_req.data_size = msg->data_size;
+        new_req.data_offset = msg->data_offset;
         new_req.data = malloc(new_req.data_size);
+
+        memcpy(new_req.data + msg->data_offset, msg->data, msg->part_size);
 
         rbuf->reqs[rbuf->wr_idx] = new_req;
         rbuf->wr_idx = (rbuf->wr_idx + 1) % rbuf->size;
@@ -77,17 +80,20 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         syslog(LOG_INFO, "First part of request SEQ: %ld added to buffer.", msg->seq);
 
         pthread_mutex_unlock(&rbuf->lock);
-        sem_post(&rbuf->full);
     } else if (msg->multipart && msg->data_offset > 0) {
-        for (int i = rbuf->rd_idx + 1; i < rbuf->wr_idx; i++) {
+        for (int i = rbuf->rd_idx; i < rbuf->wr_idx; i++) {
             if (rbuf->reqs[i].seq == msg->seq) {
                 pthread_mutex_lock(&rbuf->lock);
 
-                memcpy(rbuf->reqs[i].data + rbuf->reqs[i].data_offset, msg->data, msg->data_size);
+                memcpy(rbuf->reqs[i].data + msg->data_offset, msg->data, msg->part_size);
                 rbuf->reqs[i].data_offset += msg->data_size;
 
                 if (rbuf->reqs[i].data_offset == rbuf->reqs[i].data_size) {
                     rbuf->reqs[i].req_status = READY;
+                    syslog(LOG_INFO, "Next part of request SEQ: %ld added to buffer.", msg->seq);
+                    pthread_mutex_unlock(&rbuf->lock);
+                    sem_post(&rbuf->full);
+                    return 0;
                 } else if (rbuf->reqs[i].data_offset > rbuf->reqs[i].data_size) {
                     syslog(LOG_ERR, "handle_msg() - Corrupted data size\n");
                     return -3;
@@ -118,7 +124,7 @@ int get_service_req(struct req_buffer_t *const rbuf, struct service_req_t **data
         syslog(LOG_ERR, "Data object cannot be void!");
         return -2;
     }
-    
+
     sem_wait(&rbuf->full);
     pthread_mutex_lock(&rbuf->lock);
     *data = &rbuf->reqs[rbuf->rd_idx];

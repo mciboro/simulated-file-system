@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 #define BUFFER_SIZE 256
-#define DEBUG
+// #define DEBUG
 
 volatile sig_atomic_t working = true;
 struct req_buffer_t *server_buf = NULL;
@@ -85,6 +85,11 @@ void *operate(void *worker_args) {
         if (status) {
             syslog(LOG_ERR, "Data receiving failed!\n");
             exit(EXIT_FAILURE);
+        }
+
+        if (req->req_status == IN_PROGRESS) {
+            syslog(LOG_ERR, "Waiting for data...\n");
+            continue;
         }
 
         if (req->req_status != READY) {
