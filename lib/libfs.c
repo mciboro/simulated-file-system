@@ -1,6 +1,7 @@
 #include "libfs.h"
 
 unsigned seq_counter = 0;
+int libfs_errno = 0;
 
 long get_seq() { return (getpid() << sizeof(long) / 2) + seq_counter++; }
 
@@ -106,8 +107,10 @@ fd_type libfs_create(char *const name, long mode) {
     if (status == SUCCESS) {
         fprintf(stderr, "File %s created successfully. New desc: %d.\n", name, *(fd_type *)resp_buf);
     } else if (status == FILENAME_TAKEN) {
+        libfs_errno = FILENAME_TAKEN;
         fprintf(stderr, "Filename %s has been already taken.\n", name);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "File %s wasn't created!\n", name);
     }
 
@@ -190,8 +193,10 @@ int libfs_rename(const char *oldname, const char *newname) {
     if (status == SUCCESS) {
         fprintf(stderr, "File %s changed name successfully to %s.\n", oldname, newname);
     } else if (status == FILENAME_TAKEN) {
+        libfs_errno = FILENAME_TAKEN;
         fprintf(stderr, "Filename %s has already been taken.\n", newname);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Filename wasn't changed!\n");
     }
 
@@ -277,8 +282,10 @@ int libfs_chmode(char *const name, long mode) {
     if (status == SUCCESS) {
         fprintf(stderr, "File %s mode changed successfully.\n", name);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File %s not found.\n", name);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "File %s mode wasn't changed!\n", name);
     }
 
@@ -390,8 +397,10 @@ int libfs_stat(const char *path, struct stat_t *buf) {
         fprintf(stderr, "File %s stat: st_size: %ld, st_atime: %ld, st_mtime: %ld, st_ctime: %ld\n", path,
                 stat->st_size, stat->st_atim.tv_sec, stat->st_mtim.tv_sec, stat->st_ctim.tv_sec);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File %s not found!\n", path);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Unable to get file stat for file %s!\n", path);
     }
 
@@ -500,10 +509,13 @@ int libfs_link(const char *oldpath, const char *newpath) {
     if (status == SUCCESS) {
         fprintf(stderr, "Link %s -> %s created!\n", oldpath, newpath);
     } else if (status == FILENAME_TAKEN) {
+        libfs_errno = FILENAME_TAKEN;
         fprintf(stderr, "Link %s -> %s failed! Target already exists!\n", oldpath, newpath);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "Link %s -> %s failed! File %s not found!\n", oldpath, newpath, oldpath);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Link %s -> %s failed!\n", oldpath, newpath);
     }
 
@@ -614,10 +626,13 @@ int libfs_symlink(const char *path1, const char *path2, long mode) {
     if (status == SUCCESS) {
         fprintf(stderr, "Symlink %s -> %s created!\n", path1, path2);
     } else if (status == FILENAME_TAKEN) {
+        libfs_errno = FILENAME_TAKEN;
         fprintf(stderr, "Symlink %s -> %s failed! Target already exists!\n", path1, path2);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "Symlink %s -> %s failed! File %s not found!\n", path1, path2, path1);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Symlink %s -> %s failed!\n", path1, path2);
     }
     return status;
@@ -725,10 +740,16 @@ fd_type libfs_open(char *const name, const int flags) {
     if (status == SUCCESS) {
         fprintf(stderr, "File %s opened with descriptor %d!\n", name, resp_buf[0]);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File %s not found!\n", name);
     } else if (status == INSUFFICIENT_PERMS) {
+        libfs_errno = INSUFFICIENT_PERMS;
         fprintf(stderr, "Insufficient permissions. Access denied!\n");
+    } else if (status == DOUBLE_WRITE) {
+        libfs_errno = DOUBLE_WRITE;
+        fprintf(stderr, "File %s has already been opened for writing!\n", name);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "File %s open failed!\n", name);
     }
 
@@ -835,8 +856,10 @@ int libfs_close(const fd_type fd) {
     if (status == SUCCESS) {
         fprintf(stderr, "File descriptor %d closed!\n", fd);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File descriptor %d not found!\n", fd);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "File descriptor %d close failed!\n", fd);
     }
 
@@ -919,8 +942,10 @@ int libfs_write(const fd_type fd, const char *buf, const unsigned int size) {
     if (status == SUCCESS) {
         fprintf(stderr, "File descriptor %d write success!\n", fd);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File descriptor %d not found!\n", fd);
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "File descriptor %d write failed!\n", fd);
     }
 
@@ -1033,8 +1058,10 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size) {
         memcpy(buf, &resp_buf, resp->data_size);
         fprintf(stderr, "File descriptor %d read success!\n", fd);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File not found!\n");
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Unable to read!\n");
     }
 
@@ -1106,8 +1133,10 @@ int libfs_seek(const fd_type fd, const unsigned offset) {
     if (status == SUCCESS) {
         fprintf(stderr, "File descriptor %d seek success!\n", fd);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File not found!\n");
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Unable to seek!\n");
     }
 
@@ -1177,8 +1206,10 @@ int libfs_unlink(char *const name) {
     if (status == SUCCESS) {
         fprintf(stderr, "File %s unlinked!\n", name);
     } else if (status == FILE_NOT_FOUND) {
+        libfs_errno = FILE_NOT_FOUND;
         fprintf(stderr, "File not found!\n");
     } else {
+        libfs_errno = FAILURE;
         fprintf(stderr, "Unable to unlink!\n");
     }
 

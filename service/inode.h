@@ -71,6 +71,7 @@ int get_file_owner_group_permissions(struct inode_t *head, const char *name, uid
 int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat_t *stat);
 
 int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsigned mode, unsigned offset);
+int look_for_opened_write(struct descriptor_t *head, unsigned node_index);
 int close_file_descriptors_table(struct descriptor_t *head);
 int remove_descriptor(struct descriptor_t **head, const fd_type desc);
 

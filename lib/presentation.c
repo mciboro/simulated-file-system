@@ -15,25 +15,37 @@ int main() {
     char read_buf[send_file_size];
     memset(read_buf, 0, send_file_size);
     fd_type write_fd = 0, read_fd = 0;
-    libfs_create("history_text.txt", 0400);
+    libfs_create("history_text.txt", 0200);
     write_fd = libfs_open("history_text.txt", WRITE_ONLY);
     if (write_fd == -1) {
-        libfs_chmode("history_text.txt", 0660);
-        write_fd = libfs_open("history_text.txt", WRITE_ONLY);
-        if (write_fd == -1) {
-            return -1;
-        }
+        return -1;
     }
     libfs_write(write_fd, send_buffer, send_file_size);
+
+    libfs_create("history_text.txt", 0777);
+
+    fd_type second_writer_fd = libfs_open("history_text.txt", WRITE_ONLY);
+    if (second_writer_fd == -1) {
+        printf("One writer lock works!\n");
+    } else {
+        libfs_close(second_writer_fd);
+    }
+
     libfs_close(write_fd);
 
+    read_fd = libfs_open("history_text.txt", READ_ONLY);
+    if (read_fd == -1) {
+        libfs_chmode("history_text.txt", 0660);
+    }
+
     libfs_link("history_text.txt", "hardlink_history_text.txt");
-    libfs_symlink("hardlink_history_text.txt", "symlink_history_text.txt", 0660);
+    libfs_symlink("hardlink_history_text.txt", "symlink_history_text.txt", 0400);
 
     read_fd = libfs_open("symlink_history_text.txt", READ_ONLY);
     if (read_fd == -1) {
-        return 0;
+        return -1;
     }
+
     libfs_read(read_fd, read_buf, send_file_size);
 
     libfs_close(read_fd);
@@ -41,9 +53,11 @@ int main() {
     FILE *receive_file = fopen("lib/received_file.txt", "w");
     fwrite(read_buf, send_file_size, 1, receive_file);
 
-    libfs_unlink("hardlink_history_text.txt");
-    libfs_unlink("symlink_history_text.txt");
-
     free(send_buffer);
+
+    libfs_stat("history_text.txt", &stat);
+    libfs_stat("symlink_history_text.txt", &stat);
+
+    fclose(receive_file);
     return 0;
 }

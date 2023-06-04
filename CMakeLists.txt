@@ -19,6 +19,10 @@ add_executable(libfs-presentation lib/presentation.c)
 target_include_directories(libfs-presentation PUBLIC .)
 target_link_libraries(libfs-presentation libfs)
 
+add_executable(libfs-presentation-from-backup lib/presentation_from_backup.c)
+target_include_directories(libfs-presentation-from-backup PUBLIC .)
+target_link_libraries(libfs-presentation-from-backup libfs)
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)

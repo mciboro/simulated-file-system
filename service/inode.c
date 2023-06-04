@@ -160,6 +160,10 @@ int get_file_stat_from_inode(struct inode_t *head, const char *name, struct stat
     while (node_iter) {
         if (node_iter->index == node_index) {
             memcpy(stat, &node_iter->stat, sizeof(struct stat_t));
+
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -221,6 +225,11 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
     while (node_iter) {
         if (node_iter->index == node_index) {
             node_iter->mode = mode;
+
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
+            node_iter->stat.st_ctim = curr_time;
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -231,7 +240,7 @@ int chmod_inode(struct inode_t *head, const char *name, unsigned mode) {
 
 int unlink_inode(struct inode_t *head, const char *name) {
     unsigned node_index = 0;
-    if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
+    if (get_inode_index_for_filename(filename_table, name, &node_index) != SUCCESS) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
         return FILE_NOT_FOUND;
     }
@@ -239,6 +248,11 @@ int unlink_inode(struct inode_t *head, const char *name) {
     struct inode_t *node_iter = head;
     while (node_iter) {
         if (node_iter->index == node_index) {
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
+            node_iter->stat.st_ctim = curr_time;
+            
             node_iter->ref_count--;
             if (node_iter->ref_count == 0) {
                 for (int i = 0; i < FILE_MAX_BLOCKS; i++) {
@@ -259,10 +273,10 @@ int unlink_inode(struct inode_t *head, const char *name) {
                     node_iter->next->prev = node_iter->prev;
                 }
                 free(node_iter);
-                if (remove_filename_from_table(filename_table, name) == -1) {
-                    syslog(LOG_ERR, "unlink_inode() - Cannot remove inode from filename table");
-                    return FAILURE;
-                }
+            }
+            if (remove_filename_from_table(filename_table, name) == -1) {
+                syslog(LOG_ERR, "unlink_inode() - Cannot remove inode from filename table");
+                return FAILURE;
             }
             return SUCCESS;
         }
@@ -340,6 +354,11 @@ int write_inode_fd(struct inode_t *head, fd_type fd, const char *buf, unsigned s
             while (node_iter) {
                 if (node_iter->index == node_index) {
                     node = node_iter;
+
+                    struct timespec curr_time;
+                    clock_gettime(CLOCK_REALTIME, &curr_time);
+                    node_iter->stat.st_atim = curr_time;
+                    node_iter->stat.st_mtim = curr_time;
                     break;
                 }
                 node_iter = node_iter->next;
@@ -403,6 +422,10 @@ int read_inode_fd(struct inode_t *head, fd_type fd, char *buf, unsigned size) {
             while (node_iter) {
                 if (node_iter->index == node_index) {
                     node = node_iter;
+
+                    struct timespec curr_time;
+                    clock_gettime(CLOCK_REALTIME, &curr_time);
+                    node_iter->stat.st_atim = curr_time;
                     break;
                 }
                 node_iter = node_iter->next;
@@ -431,26 +454,18 @@ int open_inode(struct inode_t *head, fd_type *index, const char *name, unsigned 
         return FILE_NOT_FOUND;
     }
 
+    if (look_for_opened_write(descriptor_table, node_index)) {
+        return DOUBLE_WRITE;
+    }
+
     struct inode_t *node_iter = head;
     while (node_iter) {
         if (node_iter->index == node_index) {
-            // if (node_iter->type == F_SYMLINK) {
-            //     char buff[node_iter->stat.st_size];
-            //     memset(buff, 0, node_iter->stat.st_size);
-            //     unsigned offset = 0;
-            //     if (read_inode(node_iter, buff, &offset, node_iter->stat.st_size) != SUCCESS) {
-            //         syslog(LOG_ERR, "open_inode() - Failed to read inode");
-            //         return FAILURE;
-            //     }
-            //     if (get_inode_index_for_filename(filename_table, buff, &node_index) == -1) {
-            //         syslog(LOG_ERR, "There is no file with name: %s", buff);
-            //         return FILE_NOT_FOUND;
-            //     }
-            //     // Iterate from the beginning
-            //     node_iter = head;
-            //     continue;
-            // }
             *index = add_opened_descriptor(&descriptor_table, node_index, mode, 0);
+
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -517,6 +532,11 @@ int create_hard_link(struct inode_t *head, const char *name, const char *new_nam
         if (node_iter->index == node_index) {
             add_filename_to_table(&filename_table, new_name, node_iter->index);
             node_iter->ref_count++;
+
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
+            node_iter->stat.st_ctim = curr_time;
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -557,6 +577,10 @@ int create_soft_link(struct inode_t *head, const char *name, const char *new_nam
     while (node_iter) {
         if (node_iter->index == parent_index) {
             parent_node = node_iter;
+
+            struct timespec curr_time;
+            clock_gettime(CLOCK_REALTIME, &curr_time);
+            node_iter->stat.st_atim = curr_time;
             break;
         }
         node_iter = node_iter->next;
@@ -614,7 +638,20 @@ int add_opened_descriptor(struct descriptor_t **head, unsigned node_index, unsig
     }
 
     return node->desc;
-    return SUCCESS;
+}
+
+int look_for_opened_write(struct descriptor_t *head, unsigned node_index) {
+    struct descriptor_t *node_iter = head;
+    while (node_iter) {
+        if (node_iter->node_index == node_index) {
+            if (node_iter->mode == WRITE_ONLY) {
+                return true;
+            }
+        }
+        node_iter = node_iter->next;
+    }
+
+    return false;
 }
 
 int close_file_descriptors_table(struct descriptor_t *head) {

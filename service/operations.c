@@ -165,11 +165,26 @@ int service_chmode(struct service_req_t *req) {
     int status = 0;
     if (status = get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_chmode() - Can't find file owner and group");
-    } else if (file_owner != args.file_owner) {
-        syslog(LOG_ERR, "service_chmode() - File owner doesn't match");
-        status = INSUFFICIENT_PERMS;
-    } else if (status = chmod_inode(inode_table, args.filename, args.access_mode)) {
-        syslog(LOG_ERR, "service_chmode() - Can't change access mode of file");
+    }
+
+    if (args.file_owner == file_owner) {
+        if (file_perms < 0200 || (file_perms >= 0400 && file_perms < 0600)) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else if (args.file_group == file_group) {
+        if (file_perms % 0100 < 020 || (file_perms % 0100 >= 040 && file_perms % 0100 < 060)) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else {
+        if (file_perms % 010 < 02 || (file_perms % 010 >= 04 && file_perms % 010 < 06)) {
+            status = INSUFFICIENT_PERMS;
+        }
+    }
+
+    if (status == 0) {
+        if (status = chmod_inode(inode_table, args.filename, args.access_mode)) {
+            syslog(LOG_ERR, "service_chmode() - Can't change access mode of file");
+        }
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t));
@@ -224,17 +239,29 @@ int service_stat(struct service_req_t *req) {
         status = FAILURE;
     }
 
-    if (file_owner != args.file_owner || file_group != args.file_group) {
-        syslog(LOG_ERR, "service_stat() - File owner or group doesn't match");
-        status = FILE_NOT_FOUND;
+    if (args.file_owner == file_owner) {
+        if (file_perms < 0400) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else if (args.file_group == file_group) {
+        if (file_perms % 0100 < 040) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else {
+        if (file_perms % 010 < 04) {
+            status = INSUFFICIENT_PERMS;
+        }
     }
 
     unsigned data_size = 0, data_to_copy = 0;
     data_size = data_to_copy = sizeof(struct stat_t);
     char *copy_buf[data_size];
 
-    if (get_file_stat_from_inode(inode_table, args.filename, (struct stat_t *)&copy_buf) == -1) {
-        data_to_copy = data_size = 0;
+    if (status == 0) {
+        status = get_file_stat_from_inode(inode_table, args.filename, (struct stat_t *)&copy_buf);
+        if (status != SUCCESS) {
+            data_to_copy = data_size = 0;
+        }
     }
 
     unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
@@ -302,11 +329,27 @@ int service_link(struct service_req_t *req) {
     if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_link() - Can't find file owner and group");
         status = FAILURE;
-    } else if (file_owner != args.file_owner || file_group != args.file_group) {
-        syslog(LOG_ERR, "service_link() - File owner or group doesn't match");
-        status = FAILURE;
-    } else if ((status = create_hard_link(inode_table, args.filename, args.linkname)) != 0) {
-        syslog(LOG_ERR, "service_link() - Can't create hard link");
+    }
+
+    if (args.file_owner == file_owner) {
+        if (file_perms < 0400) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else if (args.file_group == file_group) {
+        if (file_perms % 0100 < 040) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else {
+        if (file_perms % 010 < 04) {
+            status = INSUFFICIENT_PERMS;
+        }
+    }
+
+    if (status == 0) {
+        status = create_hard_link(inode_table, args.filename, args.linkname);
+        if (status != SUCCESS) {
+            syslog(LOG_ERR, "service_link() - Can't create hard link");
+        }
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t));
@@ -368,14 +411,30 @@ int service_symlink(struct service_req_t *req) {
     if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_symlink() - Can't find file owner and group");
         status = FAILURE;
-    } else if (file_owner != args.file_owner || file_group != args.file_group) {
-        syslog(LOG_ERR, "service_symlink() - File owner or group doesn't match");
-        status = INSUFFICIENT_PERMS;
-    } else if ((status = create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group,
-                                          args.mode)) != 0) {
-        syslog(LOG_ERR, "service_symlink() - Can't create symbolic link");
     }
 
+    if (args.file_owner == file_owner) {
+        if (file_perms < 0400) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else if (args.file_group == file_group) {
+        if (file_perms % 0100 < 040) {
+            status = INSUFFICIENT_PERMS;
+        }
+    } else {
+        if (file_perms % 010 < 04) {
+            status = INSUFFICIENT_PERMS;
+        }
+    }
+
+    if (status == 0) {
+        status =
+            create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group, args.mode);
+        if (status != SUCCESS) {
+            syslog(LOG_ERR, "service_symlink() - Can't create symbolic link");
+        }
+    }
+    
     struct response_t *msg = malloc(sizeof(struct response_t));
     memset(msg, 0, sizeof(struct response_t));
     msg->seq = req->seq;
@@ -441,7 +500,7 @@ int service_open(struct service_req_t *req) {
                 status = INSUFFICIENT_PERMS;
             }
         } else if (args.flags == WRITE_ONLY) {
-            if (file_perms < 0200  || (file_perms >= 0400 && file_perms < 0600)) {
+            if (file_perms < 0200 || (file_perms >= 0400 && file_perms < 0600)) {
                 status = INSUFFICIENT_PERMS;
             }
         } else {
@@ -454,7 +513,7 @@ int service_open(struct service_req_t *req) {
                 status = INSUFFICIENT_PERMS;
             }
         } else if (args.flags == WRITE_ONLY) {
-            if (file_perms % 0100 < 020 || (file_perms %0100 >= 040 && file_perms % 0100 < 060)) {
+            if (file_perms % 0100 < 020 || (file_perms % 0100 >= 040 && file_perms % 0100 < 060)) {
                 status = INSUFFICIENT_PERMS;
             }
         } else {
@@ -467,7 +526,7 @@ int service_open(struct service_req_t *req) {
                 status = INSUFFICIENT_PERMS;
             }
         } else if (args.flags == WRITE_ONLY) {
-            if (file_perms % 010 < 02 || (file_perms %010 >= 04 && file_perms % 010 < 06)) {
+            if (file_perms % 010 < 02 || (file_perms % 010 >= 04 && file_perms % 010 < 06)) {
                 status = INSUFFICIENT_PERMS;
             }
         } else {
@@ -476,9 +535,11 @@ int service_open(struct service_req_t *req) {
         }
     }
 
-    if (status == 0 && (open_inode(inode_table, &fd, args.filename, args.flags) != SUCCESS)) {
-        syslog(LOG_ERR, "service_open() - Can't open file");
-        status = FILE_NOT_FOUND;
+    if (status == 0) {
+        status = open_inode(inode_table, &fd, args.filename, args.flags);
+        if (status != SUCCESS) {
+            syslog(LOG_ERR, "service_open() - Can't open file");
+        }
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t) + sizeof(fd_type));
@@ -756,9 +817,6 @@ int service_unlink(struct service_req_t *req) {
     args.file_group = *(gid_t *)(req->data + copy_off);
     copy_off += sizeof(gid_t);
     strcpy(args.name, req->data + copy_off);
-
-    syslog(LOG_INFO, "service_unlink() - file_owner: %d, file_group: %d, name: %s", args.file_owner, args.file_group,
-           args.name);
 
     int status = 0;
     if ((status = unlink_inode(inode_table, args.name)) != 0) {
