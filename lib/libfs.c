@@ -726,6 +726,8 @@ fd_type libfs_open(char *const name, const int flags) {
         fprintf(stderr, "File %s opened with descriptor %d!\n", name, resp_buf[0]);
     } else if (status == FILE_NOT_FOUND) {
         fprintf(stderr, "File %s not found!\n", name);
+    } else if (status == INSUFFICIENT_PERMS) {
+        fprintf(stderr, "Insufficient permissions. Access denied!\n");
     } else {
         fprintf(stderr, "File %s open failed!\n", name);
     }
@@ -1010,7 +1012,6 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size) {
             exit(EXIT_FAILURE);
         }
 
-        fprintf(stderr, "Received part %d\n", further_resp->part_size);
 
         if (!further_resp->multipart) {
             syslog(LOG_ERR, "Error in msgrcv() - Msg should be multipart");

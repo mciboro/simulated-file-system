@@ -128,7 +128,7 @@ int add_inode(struct inode_t **head, fd_type *index, unsigned type, uid_t owner,
     return SUCCESS;
 }
 
-int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owner, gid_t *group) {
+int get_file_owner_group_permissions(struct inode_t *head, const char *name, uid_t *owner, gid_t *group, long *perms) {
     unsigned node_index = 0;
     if (get_inode_index_for_filename(filename_table, name, &node_index) == -1) {
         syslog(LOG_ERR, "There is no file with name: %s", name);
@@ -140,6 +140,7 @@ int get_file_owner_and_group(struct inode_t *head, const char *name, uid_t *owne
         if (node_iter->index == node_index) {
             *owner = node_iter->owner;
             *group = node_iter->owner_group;
+            *perms = node_iter->mode;
             return SUCCESS;
         }
         node_iter = node_iter->next;
@@ -240,6 +241,15 @@ int unlink_inode(struct inode_t *head, const char *name) {
         if (node_iter->index == node_index) {
             node_iter->ref_count--;
             if (node_iter->ref_count == 0) {
+                for (int i = 0; i < FILE_MAX_BLOCKS; i++) {
+                    if (node_iter->data_blocks[i] > 0) {
+                        data_block_table[node_iter->data_blocks[i] - 1].allocated = 0;
+                        data_block_table[node_iter->data_blocks[i] - 1].inode_index = 0;
+                    } else {
+                        break;
+                    }
+                }
+
                 if (node_iter->prev) {
                     node_iter->prev->next = node_iter->next;
                 } else {
@@ -249,10 +259,10 @@ int unlink_inode(struct inode_t *head, const char *name) {
                     node_iter->next->prev = node_iter->prev;
                 }
                 free(node_iter);
-            }
-            if (remove_filename_from_table(filename_table, name) == -1) {
-                syslog(LOG_ERR, "unlink_inode() - Cannot remove inode from filename table");
-                return FAILURE;
+                if (remove_filename_from_table(filename_table, name) == -1) {
+                    syslog(LOG_ERR, "unlink_inode() - Cannot remove inode from filename table");
+                    return FAILURE;
+                }
             }
             return SUCCESS;
         }
@@ -555,6 +565,7 @@ int create_soft_link(struct inode_t *head, const char *name, const char *new_nam
     while (node_iter) {
         if (node_iter->index == child_index) {
             child_node = node_iter;
+            child_node->ref_count++;
             break;
         }
         node_iter = node_iter->next;

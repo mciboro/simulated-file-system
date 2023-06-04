@@ -35,11 +35,11 @@ int service_create(struct service_req_t *req) {
     if (check_if_filename_taken(filename_table, args.filename) == 0) {
         status = add_inode(&inode_table, &node_index, F_REGULAR, args.file_owner, args.file_group, 1, args.access_mode,
                            0, curr_time, curr_time, curr_time);
-        if (add_filename_to_table(&filename_table, args.filename, node_index) == -1) {
-            status = -1;
+        if (add_filename_to_table(&filename_table, args.filename, node_index) != SUCCESS) {
+            status = FAILURE;
         }
     } else {
-        status = -1;
+        status = FILENAME_TAKEN;
     }
 
     unsigned data_size = 0, data_to_copy = 0;
@@ -59,13 +59,7 @@ int service_create(struct service_req_t *req) {
         struct response_t *msg = malloc(sizeof(struct response_t) + part_data_size);
         memset(msg, 0, sizeof(struct response_t) + part_data_size);
         msg->seq = req->seq;
-        if (status == 0) {
-            msg->status = SUCCESS;
-        } else if (status == -1) {
-            msg->status = FILENAME_TAKEN;
-        } else {
-            msg->status = FAILURE;
-        }
+        msg->status = status;
         msg->multipart = num_of_parts == 1 ? 0 : num_of_parts;
         msg->data_size = data_size;
         msg->data_offset = i ? i * MAX_MSG_DATA_SIZE : 0;
@@ -167,12 +161,13 @@ int service_chmode(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    long file_perms = 0;
     int status = 0;
-    if (status = get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    if (status = get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_chmode() - Can't find file owner and group");
-    } else if (file_owner != args.file_owner || file_group != args.file_group) {
-        syslog(LOG_ERR, "service_chmode() - File owner or group doesn't match");
-        status = FAILURE;
+    } else if (file_owner != args.file_owner) {
+        syslog(LOG_ERR, "service_chmode() - File owner doesn't match");
+        status = INSUFFICIENT_PERMS;
     } else if (status = chmod_inode(inode_table, args.filename, args.access_mode)) {
         syslog(LOG_ERR, "service_chmode() - Can't change access mode of file");
     }
@@ -222,8 +217,9 @@ int service_stat(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    long file_perms = 0;
     enum Status status = SUCCESS;
-    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_stat() - Can't find file owner and group");
         status = FAILURE;
     }
@@ -301,8 +297,9 @@ int service_link(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    long file_perms = 0;
     enum Status status = SUCCESS;
-    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_link() - Can't find file owner and group");
         status = FAILURE;
     } else if (file_owner != args.file_owner || file_group != args.file_group) {
@@ -366,13 +363,14 @@ int service_symlink(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    long file_perms = 0;
     int status = 0;
-    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_symlink() - Can't find file owner and group");
-        status = -1;
+        status = FAILURE;
     } else if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_symlink() - File owner or group doesn't match");
-        status = -2;
+        status = INSUFFICIENT_PERMS;
     } else if ((status = create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group,
                                           args.mode)) != 0) {
         syslog(LOG_ERR, "service_symlink() - Can't create symbolic link");
@@ -429,16 +427,58 @@ int service_open(struct service_req_t *req) {
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
+    long file_perms = 0;
     int status = 0;
     fd_type fd = 0;
-    if (get_file_owner_and_group(inode_table, args.filename, &file_owner, &file_group)) {
+    if (get_file_owner_group_permissions(inode_table, args.filename, &file_owner, &file_group, &file_perms)) {
         syslog(LOG_ERR, "service_open() - Can't find file owner and group");
-        status = -1;
-    } else if (file_owner != args.file_owner || file_group != args.file_group) {
-        syslog(LOG_ERR, "service_open() - File owner or group doesn't match");
-        status = -2;
-    } else if ((status = open_inode(inode_table, &fd, args.filename, args.flags)) != 0) {
+        status = FAILURE;
+    }
+
+    if (args.file_owner == file_owner) {
+        if (args.flags == READ_ONLY) {
+            if (file_perms < 0400) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else if (args.flags == WRITE_ONLY) {
+            if (file_perms < 0200  || (file_perms >= 0400 && file_perms < 0600)) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else {
+            syslog(LOG_ERR, "Unknown flags!");
+            status = FAILURE;
+        }
+    } else if (args.file_group == file_group) {
+        if (args.flags == READ_ONLY) {
+            if (file_perms % 0100 < 040) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else if (args.flags == WRITE_ONLY) {
+            if (file_perms % 0100 < 020 || (file_perms %0100 >= 040 && file_perms % 0100 < 060)) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else {
+            syslog(LOG_ERR, "Unknown flags!");
+            status = FAILURE;
+        }
+    } else {
+        if (args.flags == READ_ONLY) {
+            if (file_perms % 010 < 04) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else if (args.flags == WRITE_ONLY) {
+            if (file_perms % 010 < 02 || (file_perms %010 >= 04 && file_perms % 010 < 06)) {
+                status = INSUFFICIENT_PERMS;
+            }
+        } else {
+            syslog(LOG_ERR, "Unknown flags!");
+            status = FAILURE;
+        }
+    }
+
+    if (status == 0 && (open_inode(inode_table, &fd, args.filename, args.flags) != SUCCESS)) {
         syslog(LOG_ERR, "service_open() - Can't open file");
+        status = FILE_NOT_FOUND;
     }
 
     struct response_t *msg = malloc(sizeof(struct response_t) + sizeof(fd_type));

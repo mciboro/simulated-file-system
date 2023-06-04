@@ -26,7 +26,7 @@ typedef unsigned int fd_type;
 enum Type { CREATE, CHMODE, RENAME, UNLINK, OPEN, READ, WRITE, SEEK, CLOSE, STAT, LINK, SYMLINK };
 enum FileType { F_REGULAR, F_SYMLINK };
 enum OpenMode { READ_ONLY = 0, WRITE_ONLY = 1};
-enum Status { SUCCESS, FAILURE, FILENAME_TAKEN, FILE_NOT_FOUND };
+enum Status { SUCCESS, FAILURE, FILENAME_TAKEN, FILE_NOT_FOUND, INSUFFICIENT_PERMS };
 
 struct request_t {
     long seq;
