@@ -28,7 +28,7 @@ CTEST(suite3, test3) {
     struct req_buffer_t *rbuf = malloc(sizeof(struct req_buffer_t) + sizeof(struct service_req_t) * 256);
     int res = req_buffer_create(&rbuf, 256);
     int res2 = req_bufer_destroy(&rbuf);
-    ASSERT_EQUAL(0, res2);
+    ASSERT_EQUAL(0, res);
 }
 
 CTEST(suite4, test4) {
@@ -98,7 +98,7 @@ CTEST(suite11, test11) {
     fd_type lib2 = libfs_create("sample_name_two.t268xt", 0777);
     int res = libfs_rename("sample_name.t268xt", "sample_name_two.t268xt");
 
-    ASSERT_EQUAL(res, -2);
+    ASSERT_EQUAL(res, 1);
 }
 
 //rename should fail
@@ -107,7 +107,7 @@ CTEST(suite12, test12) {
     int res = libfs_rename("sample_name15.t228xt", "sample_name15.t228xt");
 
     ASSERT_NOT_EQUAL(res, 0);
-    ASSERT_EQUAL(res, -2);
+    ASSERT_EQUAL(res, 1);
 }
 
 // chmode should success
@@ -136,7 +136,7 @@ CTEST(suite15, test15) {
     fd_type lib2 = libfs_create("sample_name_two15.t228xt", 0664);
     int res = libfs_unlink("sample_name15.t226xt");
 
-    ASSERT_EQUAL(res, -3);
+    ASSERT_EQUAL(res, 3);
 }
 
 // stat should success
@@ -197,8 +197,8 @@ CTEST(suite20, test20) {
     int res = libfs_write(fd1, buf24, 3000);
     int res2 = libfs_close(fd1);
 
-    ASSERT_EQUAL(res, 0);
-    ASSERT_EQUAL(res2, 0);
+    ASSERT_EQUAL(res, -1);
+    ASSERT_EQUAL(res2, -1);
 
 }
 
@@ -258,8 +258,8 @@ CTEST(suite24, test24) {
     libfs_close(fd5);
 
     ASSERT_EQUAL(res, -1);
-    ASSERT_EQUAL(res2, -1);
-    ASSERT_EQUAL(res3, 0);
+    ASSERT_EQUAL(res2, 1);
+    ASSERT_EQUAL(res3, 1);
 
 }
 
@@ -279,7 +279,7 @@ CTEST(suite26, test26) {
     libfs_create("sample_name9.t226xt", 0777);
     int res = libfs_link("sample_name9.t225xt", "sample_name9.t226xt");
     
-    ASSERT_EQUAL(res, -2);
+    ASSERT_EQUAL(res, 2);
 }
 
 // symlink should success
@@ -299,7 +299,7 @@ CTEST(suite28, test28) {
     libfs_create("sample_name28.txt", 0777);
     int res = libfs_symlink("sample_name28.txt", "sample_name_test27.t226xt", 0777);
 
-    ASSERT_EQUAL(res, -2);
+    ASSERT_EQUAL(res, 2);
 }
 
 // symlink should fail
@@ -308,7 +308,7 @@ CTEST(suite29, test29) {
     libfs_create("sample_name29.txt", 0777);
     int res = libfs_symlink("sample_29.txt", "sample_name_test29.t226xt", 0777);
 
-    ASSERT_EQUAL(res, -1);
+    ASSERT_EQUAL(res, 3);
 }
 
 

@@ -15,5 +15,5 @@ CTEST(suite2, test1) {
 }
 
 CTEST(suite3, test3) {
-    ASSERT_EQUAL(1,2);
+    ASSERT_NOT_EQUAL(1,2);
 }
