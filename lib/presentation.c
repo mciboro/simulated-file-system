@@ -58,6 +58,14 @@ int main() {
     libfs_stat("history_text.txt", &stat);
     libfs_stat("symlink_history_text.txt", &stat);
 
+    char seek_buf[11] = {0};
+    fd_type seek_fd = libfs_open("hardlink_history_text.txt", READ_ONLY);
+    libfs_seek(seek_fd, 10);
+    libfs_read(seek_fd, seek_buf, 10);
+    libfs_close(seek_fd);
+
+    printf("Seek test: %s\n", seek_buf);
+
     fclose(receive_file);
     return 0;
 }
