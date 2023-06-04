@@ -33,8 +33,8 @@ int service_create(struct service_req_t *req) {
 
     int status = 0;
     if (check_if_filename_taken(filename_table, args.filename) == 0) {
-        status = add_inode(&inode_table, &node_index, F_REGULAR, args.file_owner, args.file_group, 1, args.access_mode, 0,
-                               curr_time, curr_time, curr_time);
+        status = add_inode(&inode_table, &node_index, F_REGULAR, args.file_owner, args.file_group, 1, args.access_mode,
+                           0, curr_time, curr_time, curr_time);
         if (add_filename_to_table(&filename_table, args.filename, node_index) == -1) {
             status = -1;
         }
@@ -47,7 +47,8 @@ int service_create(struct service_req_t *req) {
     char copy_buf[data_size];
     memcpy(copy_buf, &node_index, sizeof(fd_type));
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -240,7 +241,8 @@ int service_stat(struct service_req_t *req) {
         data_to_copy = data_size = 0;
     }
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -359,7 +361,8 @@ int service_symlink(struct service_req_t *req) {
     copy_off += strlen(args.filename) + 1;
     strcpy(args.linkname, req->data + copy_off);
 
-    syslog(LOG_INFO, "service_symlink() - file_owner: %d, file_group: %d, mode: %ld, filename: %s, linkname: %s", args.file_owner, args.file_group, args.mode, args.filename, args.linkname );
+    syslog(LOG_INFO, "service_symlink() - file_owner: %d, file_group: %d, mode: %ld, filename: %s, linkname: %s",
+           args.file_owner, args.file_group, args.mode, args.filename, args.linkname);
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
@@ -370,7 +373,8 @@ int service_symlink(struct service_req_t *req) {
     } else if (file_owner != args.file_owner || file_group != args.file_group) {
         syslog(LOG_ERR, "service_symlink() - File owner or group doesn't match");
         status = -2;
-    } else if ((status = create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group, args.mode)) != 0) {
+    } else if ((status = create_soft_link(inode_table, args.filename, args.linkname, args.file_owner, args.file_group,
+                                          args.mode)) != 0) {
         syslog(LOG_ERR, "service_symlink() - Can't create symbolic link");
     }
 
@@ -420,7 +424,8 @@ int service_open(struct service_req_t *req) {
     copy_off += strlen(args.filename) + 1;
     args.flags = *(int *)(req->data + copy_off);
 
-    syslog(LOG_INFO, "service_open() - file_owner: %d, file_group: %d, filename: %s, flags: %d", args.file_owner, args.file_group, args.filename, args.flags);
+    syslog(LOG_INFO, "service_open() - file_owner: %d, file_group: %d, filename: %s, flags: %d", args.file_owner,
+           args.file_group, args.filename, args.flags);
 
     uid_t file_owner = 0;
     gid_t file_group = 0;
@@ -480,7 +485,8 @@ int service_close(struct service_req_t *req) {
     copy_off += sizeof(gid_t);
     args.fd = *(fd_type *)(req->data + copy_off);
 
-    syslog(LOG_INFO, "service_close() - file_owner: %d, file_group: %d, fd: %d", args.file_owner, args.file_group, args.fd);
+    syslog(LOG_INFO, "service_close() - file_owner: %d, file_group: %d, fd: %d", args.file_owner, args.file_group,
+           args.fd);
 
     int status = 0;
     if ((status = close_inode(args.fd)) != 0) {
@@ -538,7 +544,8 @@ int service_write(struct service_req_t *req) {
     args.data = malloc(args.size);
     memcpy(args.data, req->data + copy_off, args.size);
 
-    syslog(LOG_INFO, "service_write() - file_owner: %d, file_group: %d, fd: %d, size: %d", args.file_owner, args.file_group, args.fd, args.size);
+    syslog(LOG_INFO, "service_write() - file_owner: %d, file_group: %d, fd: %d, size: %d", args.file_owner,
+           args.file_group, args.fd, args.size);
 
     int status = 0;
     if ((status = write_inode_fd(inode_table, args.fd, args.data, args.size)) != 0) {
@@ -592,7 +599,8 @@ int service_read(struct service_req_t *req) {
     copy_off += sizeof(fd_type);
     args.size = *(unsigned int *)(req->data + copy_off);
 
-    syslog(LOG_INFO, "service_read() - file_owner: %d, file_group: %d, fd: %d, size: %d", args.file_owner, args.file_group, args.fd, args.size);
+    syslog(LOG_INFO, "service_read() - file_owner: %d, file_group: %d, fd: %d, size: %d", args.file_owner,
+           args.file_group, args.fd, args.size);
 
     int status = 0;
     unsigned data_size = args.size, data_to_copy = args.size;
@@ -601,7 +609,8 @@ int service_read(struct service_req_t *req) {
         syslog(LOG_ERR, "service_read() - Can't write to file");
         data_size = data_to_copy = 0;
     }
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -657,7 +666,8 @@ int service_seek(struct service_req_t *req) {
     copy_off += sizeof(fd_type);
     args.offset = *(unsigned *)(req->data + copy_off);
 
-    syslog(LOG_INFO, "service_seek() - file_owner: %d, file_group: %d, fd: %d, offset: %d", args.file_owner, args.file_group, args.fd, args.offset);
+    syslog(LOG_INFO, "service_seek() - file_owner: %d, file_group: %d, fd: %d, offset: %d", args.file_owner,
+           args.file_group, args.fd, args.offset);
 
     int status = 0;
     if ((status = seek_inode_fd(inode_table, args.fd, args.offset)) != 0) {
@@ -683,8 +693,7 @@ int service_seek(struct service_req_t *req) {
     return status;
 }
 
-int service_unlink(struct service_req_t *req)
-{
+int service_unlink(struct service_req_t *req) {
     syslog(LOG_INFO, "Handling UNLINK operation.");
 
     int msgid = 0;
@@ -708,7 +717,8 @@ int service_unlink(struct service_req_t *req)
     copy_off += sizeof(gid_t);
     strcpy(args.name, req->data + copy_off);
 
-    syslog(LOG_INFO, "service_unlink() - file_owner: %d, file_group: %d, name: %s", args.file_owner, args.file_group, args.name);
+    syslog(LOG_INFO, "service_unlink() - file_owner: %d, file_group: %d, name: %s", args.file_owner, args.file_group,
+           args.name);
 
     int status = 0;
     if ((status = unlink_inode(inode_table, args.name)) != 0) {

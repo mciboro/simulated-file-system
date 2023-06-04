@@ -21,17 +21,16 @@ int main() {
     libfs_link("sample_name.t221xt", "sample_name.t225xt");
 
     fd_type fd1 = libfs_open("sample_name.t225xt", WRITE_ONLY);
-    char *buf1 = malloc(3000);
-    memset(buf1, 'a', 3000);
+    char *buf1 = malloc(6000);
+    memset(buf1, 'a', 6000);
     memcpy(buf1, "Hello, world!", 13);
-    libfs_write(fd1, buf1, 3000);
-    libfs_write(fd1, buf1, 3000);
+    libfs_write(fd1, buf1, 6000);
     libfs_close(fd1);
 
     char *buf2 = malloc(6000);
     fd_type fd3 = libfs_open("sample_name.t225xt", READ_ONLY);
     libfs_stat("sample_name.t225xt", &buf);
-    libfs_read(fd3, buf2, 3000);
+    libfs_read(fd3, buf2, 6000);
     libfs_close(fd3);
     
     unsigned ok = 0;

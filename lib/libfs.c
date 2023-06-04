@@ -2,9 +2,7 @@
 
 unsigned seq_counter = 0;
 
-long get_seq() {
-    return (getpid() << sizeof(long) / 2) + seq_counter++;
-}
+long get_seq() { return (getpid() << sizeof(long) / 2) + seq_counter++; }
 
 fd_type libfs_create(char *const name, long mode) {
     int request_queue = 0, response_queue = 0;
@@ -33,7 +31,8 @@ fd_type libfs_create(char *const name, long mode) {
     copy_offset += sizeof(mode);
     strcpy(copy_buf + copy_offset, name);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -140,7 +139,8 @@ int libfs_rename(const char *oldname, const char *newname) {
     copy_offset += strlen(oldname) + 1;
     strcpy(copy_buf + copy_offset, newname);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -227,7 +227,8 @@ int libfs_chmode(char *const name, long mode) {
     copy_offset += sizeof(mode);
     strcpy(copy_buf + copy_offset, name);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -311,7 +312,8 @@ int libfs_stat(const char *path, struct stat_t *buf) {
     copy_offset += sizeof(gid);
     strcpy(copy_buf + copy_offset, path);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -423,7 +425,8 @@ int libfs_link(const char *oldpath, const char *newpath) {
     copy_offset += strlen(oldpath) + 1;
     strcpy(copy_buf + copy_offset, newpath);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -536,7 +539,8 @@ int libfs_symlink(const char *path1, const char *path2, long mode) {
     copy_offset += strlen(path1) + 1;
     strcpy(copy_buf + copy_offset, path2);
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -646,7 +650,8 @@ fd_type libfs_open(char *const name, const int flags) {
     copy_offset += strlen(name) + 1;
     memcpy(copy_buf + copy_offset, &flags, sizeof(flags));
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -753,7 +758,8 @@ int libfs_close(const fd_type fd) {
     copy_offset += sizeof(gid);
     memcpy(copy_buf + copy_offset, &fd, sizeof(fd));
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -919,8 +925,7 @@ int libfs_write(const fd_type fd, const char *buf, const unsigned int size) {
     return status == SUCCESS ? 0 : -1;
 }
 
-int libfs_read(const fd_type fd, char *buf, const unsigned int size)
-{
+int libfs_read(const fd_type fd, char *buf, const unsigned int size) {
     int request_queue = 0, response_queue = 0;
     unsigned copy_offset = 0;
 
@@ -947,7 +952,8 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
     copy_offset += sizeof(fd);
     memcpy(copy_buf + copy_offset, &size, sizeof(size));
 
-    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE + data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
+    unsigned num_of_parts = data_size / MAX_MSG_DATA_SIZE;
+    num_of_parts += data_size % MAX_MSG_DATA_SIZE ? 1 : 0;
     if (num_of_parts == 0) {
         num_of_parts = 1;
     }
@@ -973,7 +979,6 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
         free(create_req);
         data_to_copy -= data_to_copy > MAX_MSG_DATA_SIZE ? MAX_MSG_DATA_SIZE : data_to_copy;
     }
-    fprintf(stderr, "libfs_read() - Sent %d parts\n", num_of_parts);
     response_queue = msgget(IPC_RESPONSE_KEY, IPC_PERMS | IPC_CREAT);
 
     if (response_queue == -1) {
@@ -995,12 +1000,12 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
     char resp_buf[resp_data_size];
 
     memcpy(resp_buf, resp->data, copied_data);
-    
+
     while (copied_data < resp_data_size) {
         struct response_t *further_resp = malloc(MAX_MSG_SIZE);
         memset(further_resp, 0, MAX_MSG_SIZE);
 
-        if (msgrcv(response_queue, further_resp, MAX_MSG_SIZE, seq, 0) == -1) {
+        if (msgrcv(response_queue, further_resp, MAX_MSG_SIZE - sizeof(long), seq, 0) == -1) {
             syslog(LOG_ERR, "Error in msgrcv()");
             exit(EXIT_FAILURE);
         }
@@ -1036,8 +1041,7 @@ int libfs_read(const fd_type fd, char *buf, const unsigned int size)
     return status;
 }
 
-int libfs_seek(const fd_type fd, const unsigned offset)
-{
+int libfs_seek(const fd_type fd, const unsigned offset) {
     int request_queue = 0, response_queue = 0;
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
@@ -1074,8 +1078,7 @@ int libfs_seek(const fd_type fd, const unsigned offset)
     create_req->data_offset = 0;
     memcpy(create_req->data, copy_buf, create_req->part_size);
 
-    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
-        -1) {
+    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) == -1) {
         fprintf(stderr, "libfs_seek() - Failed to send message to queue\n");
         exit(EXIT_FAILURE);
     }
@@ -1111,8 +1114,7 @@ int libfs_seek(const fd_type fd, const unsigned offset)
     return status;
 }
 
-int libfs_unlink(char *const name)
-{
+int libfs_unlink(char *const name) {
     int request_queue = 0, response_queue = 0;
 
     request_queue = msgget(IPC_REQUESTS_KEY, IPC_PERMS | IPC_CREAT);
@@ -1147,8 +1149,7 @@ int libfs_unlink(char *const name)
     create_req->data_offset = 0;
     memcpy(create_req->data, copy_buf, create_req->part_size);
 
-    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) ==
-        -1) {
+    if (msgsnd(request_queue, create_req, sizeof(struct request_t) + create_req->part_size - sizeof(long), 0) == -1) {
         fprintf(stderr, "libfs_unlink() - Failed to send message to queue\n");
         exit(EXIT_FAILURE);
     }
