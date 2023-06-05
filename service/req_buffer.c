@@ -69,7 +69,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
         new_req.seq = msg->seq;
         new_req.req_status = IN_PROGRESS;
         new_req.data_size = msg->data_size;
-        new_req.data_offset = msg->data_offset;
+        new_req.data_offset = msg->part_size;
         new_req.data = malloc(new_req.data_size);
 
         memcpy(new_req.data + msg->data_offset, msg->data, msg->part_size);
@@ -86,7 +86,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
                 pthread_mutex_lock(&rbuf->lock);
 
                 memcpy(rbuf->reqs[i].data + msg->data_offset, msg->data, msg->part_size);
-                rbuf->reqs[i].data_offset += msg->data_size;
+                rbuf->reqs[i].data_offset += msg->part_size;
 
                 if (rbuf->reqs[i].data_offset == rbuf->reqs[i].data_size) {
                     rbuf->reqs[i].req_status = READY;
@@ -101,6 +101,7 @@ int handle_msg(struct req_buffer_t *rbuf, const struct request_t *msg) {
 
                 syslog(LOG_INFO, "Next part of request SEQ: %ld added to buffer.", msg->seq);
                 pthread_mutex_unlock(&rbuf->lock);
+                return 0;
             }
         }
 
