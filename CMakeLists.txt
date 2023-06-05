@@ -3,11 +3,11 @@ project(libfs VERSION 0.1.0)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_executable(service service/service.c service/req_buffer.c service/operations.c service/inode.c common.c)
+add_executable(service service/service.c service/req_buffer.c service/operations.c service/inode.c)
 target_include_directories(service PUBLIC .)
 target_link_libraries(service pthread)
 
-add_library(libfs SHARED lib/libfs.c common.c)
+add_library(libfs SHARED lib/libfs.c)
 target_include_directories(libfs PUBLIC .)
 # target_link_libraries(libfs)
 
@@ -31,7 +31,7 @@ enable_testing()
 
 file(GLOB_RECURSE SOURCE_FILES ${PROJECT_SOURCE_DIR}/lib/libfs.c ${PROJECT_SOURCE_DIR}/common.h)
 file(GLOB TEST_SOURCES ${PROJECT_SOURCE_DIR}/test/test-*.c)
-add_executable(runUnitTests ${TEST_SOURCES} ${SOURCE_FILES} ${PROJECT_SOURCE_DIR}/test/ctest.h service/req_buffer.c service/operations.c service/inode.c common.c)
+add_executable(runUnitTests ${TEST_SOURCES} ${SOURCE_FILES} ${PROJECT_SOURCE_DIR}/test/ctest.h service/req_buffer.c service/operations.c service/inode.c)
 
 target_link_libraries(runUnitTests pthread)
 target_include_directories(runUnitTests PUBLIC .)

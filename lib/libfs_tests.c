@@ -12,8 +12,8 @@ int main() {
     libfs_chmode("sample_name.t220xt", 0644);
     libfs_chmode("sample_name.t220xt222", 0644);
 
-    libfs_rename("sample_name.t221xt", "new_nice_name.exehehe");
-    libfs_rename("sample_name.t223xt", "new_nice_name.exehehe");
+    libfs_rename("sample_name.t221xt", "new_nice_name.txt");
+    libfs_rename("sample_name.t223xt", "new_nice_name.txt");
 
     libfs_stat("sample_name.t221xt", &buf);
     libfs_stat("sample_name.t222xt", &buf);

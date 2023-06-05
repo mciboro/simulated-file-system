@@ -15,7 +15,7 @@ int service_create(struct service_req_t *req) {
         uid_t file_owner;
         gid_t file_group;
         long access_mode;
-        char filename[256];
+        char filename[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
@@ -90,8 +90,8 @@ int service_rename(struct service_req_t *req) {
 
     // Code of operation on file
     struct rename_args_t {
-        char oldname[256];
-        char newname[256];
+        char oldname[MAX_FILENAME_LEN];
+        char newname[MAX_FILENAME_LEN];
     } args;
 
     strcpy(args.oldname, req->data);
@@ -147,7 +147,7 @@ int service_chmode(struct service_req_t *req) {
         uid_t file_owner;
         gid_t file_group;
         long access_mode;
-        char filename[256];
+        char filename[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
@@ -220,7 +220,7 @@ int service_stat(struct service_req_t *req) {
     struct stat_args_t {
         uid_t file_owner;
         gid_t file_group;
-        char filename[256];
+        char filename[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
@@ -309,8 +309,8 @@ int service_link(struct service_req_t *req) {
     struct link_args_t {
         uid_t file_owner;
         gid_t file_group;
-        char filename[256];
-        char linkname[256];
+        char filename[MAX_FILENAME_LEN];
+        char linkname[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
@@ -386,8 +386,8 @@ int service_symlink(struct service_req_t *req) {
         uid_t file_owner;
         gid_t file_group;
         long mode;
-        char filename[256];
-        char linkname[256];
+        char filename[MAX_FILENAME_LEN];
+        char linkname[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
@@ -468,7 +468,7 @@ int service_open(struct service_req_t *req) {
     struct open_args_t {
         uid_t file_owner;
         gid_t file_group;
-        char filename[256];
+        char filename[MAX_FILENAME_LEN];
         int flags;
     } args;
 
@@ -808,7 +808,7 @@ int service_unlink(struct service_req_t *req) {
     struct unlink_args_t {
         uid_t file_owner;
         gid_t file_group;
-        char name[256];
+        char name[MAX_FILENAME_LEN];
     } args;
 
     unsigned copy_off = 0;
