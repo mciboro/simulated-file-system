@@ -1,5 +1,4 @@
-# UXP1A-libfs
-
+# Simulated UNIX-like file system.
 
 
 ## Getting started
